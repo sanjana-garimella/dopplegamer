@@ -1,0 +1,127 @@
+# Experiment configurations and scenarios
+# ========================================
+
+experiments:
+  baseline_comparison:
+    name: "Baseline Agent Comparison"
+    description: "Compare all 4 agent architectures with standard settings"
+    agents: ["sft", "rl", "bcrl", "agentic"]
+    engines: ["baseline"]
+    rounds: 500
+    quantization: "fp16"
+    seeds: [0, 1, 2]
+    metrics:
+      - "win_rate"
+      - "behavioral_fidelity"
+      - "action_kl"
+      - "avg_decision_ms"
+    
+  inference_optimization:
+    name: "Inference Engine Optimization"
+    description: "Benchmark vLLM, Preble, and InferCept against baseline"
+    agents: ["sft"]
+    engines: ["baseline", "vllm", "preble", "infercept"]
+    rounds: 1000
+    quantization: "fp16"
+    seeds: [0]
+    metrics:
+      - "ttft_ms"
+      - "tpot_ms"
+      - "total_latency_ms"
+      - "kv_cache_mb"
+      - "throughput_decisions_per_sec"
+      - "scheduling_overhead_pct"
+    profile:
+      memory: true
+      latency: true
+      kv_cache: true
+    
+  quantization_study:
+    name: "Quantization Impact Analysis"
+    description: "Measure accuracy vs speed tradeoff across INT4, INT8, FP16"
+    agents: ["sft", "rl", "bcrl"]
+    engines: ["vllm"]
+    rounds: 200
+    quantizations: ["fp32", "fp16", "int8", "int4"]
+    seeds: [0, 1]
+    metrics:
+      - "win_rate"
+      - "win_rate_degradation"
+      - "latency_speedup"
+      - "memory_reduction"
+    
+  agentic_llm_deep_dive:
+    name: "Agentic LLM Architecture Comparison"
+    description: "Compare ReAct vs CrewAI vs ADK hierarchical delegation"
+    agents: ["agentic"]
+    engines: ["vllm"]
+    rounds: 100
+    quantization: "fp16"
+    agentic_modes: ["react", "crew", "adk"]
+    seeds: [0]
+    metrics:
+      - "win_rate"
+      - "decision_quality"
+      - "reasoning_steps"
+      - "tool_usage_count"
+      - "total_latency_ms"
+    
+  memory_scaling:
+    name: "KV Cache Growth Under Sustained Load"
+    description: "Track KV cache memory as game history grows over turns"
+    agents: ["sft"]
+    engines: ["vllm"]
+    max_turns: 500
+    quantization: "fp16"
+    seeds: [0]
+    metrics:
+      - "kv_cache_mb_per_turn"
+      - "memory_growth_curve"
+      - "prefill_latency_curve"
+      - "decode_latency_curve"
+    sample_turns: [10, 25, 50, 100, 200, 500]
+    
+  cost_optimization:
+    name: "Cost Per 1000 Decisions"
+    description: "Estimate compute cost across quantization x engine combinations"
+    agents: ["sft"]
+    engines: ["baseline", "vllm", "preble", "infercept"]
+    rounds: 500
+    quantizations: ["fp16", "int8", "int4"]
+    seeds: [0]
+    gpu_cost_per_hour: 2.50
+    metrics:
+      - "cost_per_1k_decisions"
+      - "cost_vs_quality_ratio"
+
+# Evaluation settings
+evaluation:
+  train_test_split: 0.8
+  cross_validation_folds: 5
+  confidence_level: 0.95
+  min_games_per_agent: 100
+  timeout_per_game_seconds: 60
+
+# Logging and artifacts
+logging:
+  log_level: "INFO"
+  log_dir: "logs/"
+  save_intervals:
+    game_data: 50
+    benchmark_results: 100
+    model_checkpoints: 500
+  
+  wandb:
+    enabled: false
+    project: "agentbench"
+    entity: null
+    tags: []
+    notes: ""
+
+# Hardware/environment
+environment:
+  device: "cuda"
+  num_workers: 4
+  pin_memory: true
+  mixed_precision: true
+  gradient_checkpointing: false

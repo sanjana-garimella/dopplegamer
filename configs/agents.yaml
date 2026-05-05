@@ -1,0 +1,76 @@
+# Agent hyperparameters and configurations
+# ==========================================
+
+agents:
+  sft:
+    name: "Supervised Fine-Tuning Agent"
+    model_name: "meta-llama/Llama-3.2-1B"
+    lora_rank: 16
+    lora_alpha: 32
+    lora_dropout: 0.05
+    target_modules: ["q_proj", "v_proj"]
+    quantize_4bit: false
+    checkpoint: null
+
+  rl:
+    name: "Reinforcement Learning Agent (PPO)"
+    algorithm: "PPO"
+    n_envs: 4
+    n_steps: 2048
+    batch_size: 64
+    learning_rate: 3.0e-4
+    gamma: 0.99
+    gae_lambda: 0.95
+    clip_range: 0.2
+    n_epochs: 10
+    checkpoint: null
+
+  bc_rl:
+    name: "Behavioral Cloning + RL Agent"
+    alpha: 0.6  # weight on env (win) reward
+    beta: 0.4   # weight on behavioral cloning bonus
+    sft_checkpoint: null
+    rl_learning_rate: 3.0e-4
+    bc_weight: 1.0
+
+  agentic:
+    name: "Agentic LLM Agent"
+    mode: "react"  # options: "react", "crew", "adk"
+    llm_provider: "openai"  # options: "openai", "ollama", "mock"
+    llm_model: "gpt-4o-mini"
+    temperature: 0.7
+    max_reasoning_steps: 5
+    use_tools: true
+    use_memory: true
+    memory_window: 10
+    rag_enabled: false
+    
+    # CrewAI specific
+    crew_roles:
+      - name: "Analyst"
+        description: "Analyzes game history and opponent patterns"
+      - name: "Strategist"
+        description: "Develops winning strategy based on analysis"
+      - name: "Executor"
+        description: "Executes the strategy with tactical adjustments"
+    
+    # ADK hierarchy specific
+    use_coordinator: true
+    coordinator_update_freq: 5
+
+# Sampling/rollout parameters
+rollout:
+  max_turns: 100
+  seed: 42
+  verbose: false
+
+# Training defaults (can be overridden per experiment)
+training_defaults:
+  epochs: 3
+  batch_size: 32
+  learning_rate: 1.0e-4
+  warmup_steps: 100
+  weight_decay: 0.01
+  gradient_clip: 1.0
+  checkpoint_every: 500
+  eval_every: 100

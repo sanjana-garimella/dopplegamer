@@ -1,0 +1,55 @@
+impostor_effect:
+  description: "Personalized Impostor Agent training and evaluation settings"
+
+  agents:
+    ngram:
+      n: 2
+      description: "N-gram transition frequency baseline"
+
+    lstm:
+      hidden_size: 64
+      num_layers: 2
+      epochs: 20
+      learning_rate: 0.001
+      sequence_length: 10
+      description: "LSTM sequential behavioral clone"
+
+    bc_rl:
+      alpha: 0.6       # fidelity weight
+      beta: 0.4        # win-rate weight
+      history_window: 10
+      description: "BC+RL blended agent (from AgentBench)"
+
+  training:
+    checkpoint_dir: "checkpoints/impostor"
+    min_games_to_train: 5      # minimum games before training is meaningful
+    auto_retrain_after: 10     # retrain every N new games
+
+  experiments:
+    exp1_fidelity:
+      train_split: 0.8
+      eval_rounds: 50
+      seeds: [1, 2, 3]
+
+    exp2_turing_test:
+      n_trials_per_player: 20
+      blind_randomize: true
+
+    exp3_data_regime:
+      data_sizes: [20, 50, 100, 200, 500]
+      fidelity_threshold: 0.70
+
+    exp4_bias_transfer:
+      sim_rounds: 100
+      recency_window: 3
+      streak_threshold: 2
+
+    exp5_llm_vs_lstm:
+      lstm_epochs: 5
+      eval_rounds: 50
+
+  publication:
+    target_venues: ["CoG", "AIIDE", "CHI"]
+    fidelity_threshold: 0.70
+    min_players: 8
+    min_games_per_player: 20

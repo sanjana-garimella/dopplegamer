@@ -1,0 +1,11 @@
+.git
+.gitignore
+.pytest_cache
+__pycache__
+.venv
+.mypy_cache
+.DS_Store
+logs
+notebooks
+data/*.db
+data/*.sqlite

@@ -1,0 +1,28 @@
+[project]
+name = "agentbench"
+version = "0.1.0"
+description = "LLM Inference Optimization Benchmark for Real-Time Agent Decision Systems"
+requires-python = ">=3.12"
+authors = [{ name = "Sanjana Garimella", email = "sanjanagarimella6@gmail.com" }]
+license = { text = "MIT" }
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = [
+    "environments*",
+    "agents*",
+    "serving*",
+    "analysis*",
+    "data*",
+    "dashboard*",
+    "evaluation*",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+pythonpath = ["."]

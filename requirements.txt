@@ -1,0 +1,21 @@
+# ── AgentBench core
+fastapi
+uvicorn
+gymnasium
+numpy
+pandas
+plotly
+streamlit
+pydantic
+pytest
+stable-baselines3
+transformers
+datasets
+peft
+chromadb
+
+# ── Impostor Effect additions
+chess          # python-chess — Chess environment
+scikit-learn   # logistic regression baselines
+torch          # LSTM Impostor (optional — falls back to heuristic without it)
+pyyaml         # config loading

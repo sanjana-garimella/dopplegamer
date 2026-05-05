@@ -1,0 +1,675 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="legacy-title" content="Neon Strategy Arcade" />
+  <title>Doppelgamer Arcade</title>
+  <style>
+    :root {
+      --bg: #0d0d1a;
+      --panel: rgba(17, 24, 39, 0.72);
+      --line: rgba(255,255,255,.14);
+      --text: #f8fafc;
+      --muted: #a6b0c3;
+      --cyan: #22d3ee;
+      --pink: #fb7185;
+      --amber: #f59e0b;
+      --green: #22c55e;
+      --purple: #a78bfa;
+      --red: #ef4444;
+      --blue: #60a5fa;
+      --yellow: #facc15;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 18% 8%, rgba(34,211,238,.20), transparent 24rem),
+        radial-gradient(circle at 82% 12%, rgba(167,139,250,.18), transparent 22rem),
+        linear-gradient(135deg, #070712, #10112a 52%, #160920);
+      overflow-x: hidden;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        radial-gradient(circle, rgba(255,255,255,.75) 1px, transparent 1.5px),
+        linear-gradient(rgba(34,211,238,.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(34,211,238,.04) 1px, transparent 1px);
+      background-size: 160px 160px, 46px 46px, 46px 46px;
+      animation: drift 24s linear infinite;
+      opacity: .45;
+    }
+    @keyframes drift { to { transform: translate3d(-46px, 46px, 0); } }
+    .app { width: min(1480px, calc(100% - 28px)); margin: 0 auto; padding: 20px 0 40px; position: relative; }
+    .topbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 16px;
+      align-items: center;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: linear-gradient(145deg, rgba(255,255,255,.10), rgba(255,255,255,.035));
+      backdrop-filter: blur(22px);
+      box-shadow: 0 24px 80px rgba(0,0,0,.35);
+    }
+    h1 { margin: 0; font-size: clamp(28px, 4vw, 54px); letter-spacing: -.04em; line-height: .95; }
+    .sub { margin: 8px 0 0; color: var(--muted); max-width: 760px; }
+    .nav { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+    button, select, input {
+      font: inherit;
+      color: var(--text);
+      background: #111827;
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 14px;
+      padding: 10px 12px;
+      outline: none;
+    }
+    button { cursor: pointer; font-weight: 800; transition: transform .16s ease, filter .16s ease, box-shadow .16s ease; }
+    button:hover { transform: translateY(-2px); filter: brightness(1.12); }
+    button:disabled { opacity: .42; cursor: not-allowed; transform: none; }
+    .nav button.active { background: linear-gradient(135deg, var(--cyan), var(--purple)); color: #020617; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; margin-top: 18px; }
+    .stage, .side {
+      border: 1px solid var(--line);
+      border-radius: 30px;
+      background: rgba(8, 13, 29, .72);
+      backdrop-filter: blur(22px);
+      box-shadow: 0 26px 80px rgba(0,0,0,.34);
+      overflow: hidden;
+    }
+    .stage { min-height: 720px; padding: clamp(16px, 2vw, 28px); position: relative; }
+    .side { padding: 16px; height: fit-content; position: sticky; top: 18px; }
+    .game-head { display: flex; align-items: end; justify-content: space-between; gap: 14px; margin-bottom: 16px; }
+    .game-head h2 { margin: 0; font-size: clamp(28px, 3.3vw, 48px); line-height: 1; }
+    .pillrow, .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .pill { border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.07); padding: 8px 10px; border-radius: 999px; color: var(--muted); font-weight: 800; font-size: 13px; }
+    .score { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin: 12px 0; }
+    .score div { border: 1px solid var(--line); border-radius: 18px; padding: 12px; background: rgba(255,255,255,.06); }
+    .score strong { display: block; font-size: 26px; }
+    .banner {
+      min-height: 54px;
+      display: grid;
+      place-items: center;
+      margin: 12px 0 18px;
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: linear-gradient(135deg, rgba(34,211,238,.16), rgba(167,139,250,.12));
+      font-weight: 1000;
+      letter-spacing: .08em;
+      transform-origin: center;
+    }
+    .banner.show { animation: popIn .38s cubic-bezier(.18,1.4,.2,1); }
+    @keyframes popIn { from { transform: translateY(18px) scale(.86); opacity: 0; } to { transform: none; opacity: 1; } }
+    .history { display: grid; gap: 8px; max-height: 320px; overflow: auto; }
+    .history div { padding: 10px; border-radius: 14px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.10); color: var(--muted); }
+    .board-wrap { display: grid; place-items: center; margin: 10px auto; }
+    .grid { display: grid; gap: 8px; }
+    .cell {
+      width: 72px;
+      height: 72px;
+      display: grid;
+      place-items: center;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      font-size: 34px;
+      position: relative;
+      overflow: hidden;
+    }
+    .cell::after { content: ""; position: absolute; inset: 0; opacity: 0; background: radial-gradient(circle, rgba(255,255,255,.32), transparent 44%); transform: scale(.2); }
+    .cell.ripple::after { animation: ripple .45s ease; }
+    @keyframes ripple { 0% { opacity: 1; transform: scale(.1); } 100% { opacity: 0; transform: scale(2.4); } }
+    .win-glow { animation: winPulse .8s ease-in-out infinite alternate; }
+    @keyframes winPulse { to { box-shadow: 0 0 34px currentColor, inset 0 0 18px rgba(255,255,255,.24); } }
+    .shake { animation: shake .36s linear; }
+    @keyframes shake { 20%,60% { transform: translateX(-8px); } 40%,80% { transform: translateX(8px); } }
+    .particles { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 10; }
+    .particle { position: absolute; width: 8px; height: 8px; border-radius: 50%; animation: burst .75s ease-out forwards; }
+    @keyframes burst { to { transform: translate(var(--x), var(--y)) scale(.2); opacity: 0; } }
+    .confetti { position: fixed; width: 9px; height: 14px; animation: confetti 1.4s ease-out forwards; z-index: 12; }
+    @keyframes confetti { to { transform: translateY(65vh) rotate(720deg); opacity: 0; } }
+
+    /* RPSLS */
+    .choices { display: flex; flex-wrap: wrap; justify-content: center; gap: 18px; margin: 24px 0; }
+    .choice {
+      width: 86px; height: 86px; border-radius: 50%; display: grid; place-items: center;
+      font-size: 34px; background: rgba(255,255,255,.045); box-shadow: 0 0 0 1px currentColor, 0 0 22px color-mix(in srgb, currentColor 44%, transparent);
+    }
+    .choice span { font-size: 11px; position: absolute; transform: translateY(58px); color: var(--muted); }
+    .choice.rock { color: var(--amber); } .choice.paper { color: var(--blue); } .choice.scissors { color: var(--red); } .choice.lizard { color: var(--green); } .choice.spock { color: var(--purple); }
+    .countdown { min-height: 70px; display: grid; place-items: center; font-size: 42px; font-weight: 1000; }
+    .thinking::after { content: ""; animation: dots 1s steps(4,end) infinite; }
+    @keyframes dots { 0% { content:""; } 25% { content:"."; } 50% { content:".."; } 75%,100% { content:"..."; } }
+    .pips { display:flex; gap: 7px; justify-content:center; margin: 10px; }
+    .pip { width: 14px; height: 14px; border-radius: 50%; background: rgba(255,255,255,.16); }
+    .pip.win { background: var(--green); box-shadow: 0 0 16px var(--green); } .pip.loss { background: var(--red); box-shadow: 0 0 16px var(--red); }
+    .rule-tip { text-align: center; color: var(--muted); min-height: 24px; }
+
+    /* Tic tac toe */
+    .ttt-board { grid-template-columns: repeat(3, 112px); padding: 18px; border-radius: 28px; background: rgba(255,255,255,.09); animation: float 4s ease-in-out infinite; }
+    @keyframes float { 50% { transform: translateY(-6px); } }
+    .ttt-cell { width:112px; height:112px; background: rgba(255,255,255,.08); font-size: 58px; }
+    .ttt-cell.x { color: var(--pink); text-shadow: 0 0 22px var(--pink); }
+    .ttt-cell.o { color: var(--cyan); text-shadow: 0 0 22px var(--cyan); }
+    .ttt-cell.empty:hover::before { content: attr(data-preview); opacity: .28; }
+
+    /* Connect Four */
+    .cf-area { display: grid; justify-content: center; gap: 8px; }
+    .cf-arrows { display:grid; grid-template-columns: repeat(7, 62px); gap: 8px; }
+    .cf-arrow { height:38px; border-radius: 999px; color: var(--cyan); }
+    .cf-board { display:grid; grid-template-columns: repeat(7, 62px); gap: 8px; padding: 16px; background:#07215c; border-radius: 28px; box-shadow: inset 0 0 34px rgba(34,211,238,.18); }
+    .hole { width:62px;height:62px;border-radius:50%;background:#050817;box-shadow: inset 0 0 18px rgba(0,0,0,.85); }
+    .disc1 { background: radial-gradient(circle at 30% 25%, #fff2, #ff4a4a 35%, #8b1111); box-shadow: 0 0 20px #ef4444; }
+    .disc2 { background: radial-gradient(circle at 30% 25%, #fff9, #fde047 35%, #a16207); box-shadow: 0 0 20px #facc15; }
+    .drop { animation: drop .45s cubic-bezier(.2,.9,.24,1.2); }
+    @keyframes drop { from { transform: translateY(-360px); } to { transform: none; } }
+    .scan { animation: scan .8s ease; }
+    @keyframes scan { 50% { filter: brightness(1.9); } }
+
+    /* Chess/checkers shared */
+    .wood { padding: 16px; border-radius: 24px; background: linear-gradient(135deg,#3b2107,#8B4513); }
+    .chess-board, .check-board { display:grid; grid-template-columns: repeat(8, 68px); gap: 0; border: 8px solid #2a1605; box-shadow: 0 22px 60px rgba(0,0,0,.35); }
+    .sq { width:68px;height:68px;border-radius:0;font-size:44px; }
+    .light { background:#f0d9b5;color:#2b1707; } .dark { background:#4a2c0a;color:#f8fafc; }
+    .sel { outline: 4px solid #ffd700; z-index:2; animation: winPulse .7s infinite alternate; }
+    .legal::before { content:""; width:16px;height:16px;border-radius:50%;background:#22c55e;box-shadow:0 0 18px #22c55e; }
+    .check { animation: checkFlash .7s infinite alternate; }
+    @keyframes checkFlash { to { background: #ef4444; } }
+    .piece { width: 48px; height: 48px; border-radius: 50%; display:grid;place-items:center; font-size:24px; box-shadow: inset 8px 8px 12px rgba(255,255,255,.18), inset -10px -10px 18px rgba(0,0,0,.35), 0 8px 18px rgba(0,0,0,.35); }
+    .redp { background: radial-gradient(circle at 30% 25%, #fff5, #991b1b 38%, #450a0a); } .blackp { background: radial-gradient(circle at 30% 25%, #fff4, #111827 38%, #020617); }
+
+    /* Othello */
+    .felt { padding: 18px; border-radius:24px; background: repeating-linear-gradient(45deg,#1a472a,#1a472a 8px,#174024 8px,#174024 16px); }
+    .oth-board { display:grid; grid-template-columns: repeat(8, 64px); gap: 5px; }
+    .oth-cell { width:64px;height:64px;border-radius:12px;background:rgba(255,255,255,.09); }
+    .disc { width:50px;height:50px;border-radius:50%; transform-style:preserve-3d; animation: flip .42s ease; }
+    .black { background: radial-gradient(circle at 30% 25%, #fff3, #070707 42%, #000); } .white { background: radial-gradient(circle at 30% 25%, #fff, #e5e7eb 55%, #aaa); }
+    @keyframes flip { from { transform: rotateY(90deg); } to { transform: rotateY(0); } }
+    .valid::before { content:""; width:16px;height:16px;border-radius:50%; background:rgba(250,204,21,.62); animation: pulse 1s infinite alternate; }
+    @keyframes pulse { to { transform: scale(1.4); opacity:.55; } }
+
+    /* Gomoku */
+    .g-board { position:relative; display:grid; gap:0; padding:18px; background:#f5e6c8; border-radius:20px; box-shadow: inset 0 0 40px rgba(44,26,14,.18); }
+    .g-cell { width:34px;height:34px;border-radius:0;background:transparent;border-right:1px solid #2c1a0e;border-bottom:1px solid #2c1a0e;color:#111; }
+    .stone { width:28px;height:28px;border-radius:50%; transform: scale(0); animation: place .2s ease forwards; }
+    @keyframes place { 70% { transform:scale(1.12); } 100% { transform:scale(1); } }
+    .sblack { background: radial-gradient(circle at 30% 25%, #fff4, #0a0a0a 40%, #000); } .swhite { background: radial-gradient(circle at 30% 25%, #fff, #f8fafc 45%, #cbd5e1); }
+    .last::after { content:""; width:7px;height:7px;border-radius:50%;background:#dc2626;position:absolute; }
+
+    /* Nim */
+    .nim-row { display:flex; align-items:center; gap:12px; margin:14px auto; width:min(780px,100%); padding:14px; border-radius:20px; background:rgba(255,255,255,.055); border-left:5px solid var(--cyan); }
+    .match { width:10px;height:72px;border-radius:8px;background:linear-gradient(#f97316 0 14px,#22d3ee 15px);box-shadow:0 0 18px #22d3ee; }
+    .match:hover,.match.hot { filter:hue-rotate(140deg) brightness(1.4); box-shadow:0 0 22px #f59e0b; }
+    .removed { animation: dissolve .45s forwards; }
+    @keyframes dissolve { to { transform: translateY(-20px) rotate(25deg) scale(.2); opacity:0; } }
+    .glitch { animation: glitch .5s steps(2,end) 4; }
+    @keyframes glitch { 50% { text-shadow: 5px 0 var(--cyan), -5px 0 var(--pink); transform: skewX(6deg); } }
+    @media (max-width: 980px) {
+      .layout { grid-template-columns: 1fr; }
+      .side { position: static; }
+      .topbar { grid-template-columns: 1fr; }
+      .nav { justify-content: flex-start; }
+      .chess-board,.check-board { grid-template-columns: repeat(8, 42px); }
+      .sq { width:42px;height:42px;font-size:28px; }
+      .cf-board,.cf-arrows { grid-template-columns: repeat(7, 42px); }
+      .hole { width:42px;height:42px; }
+      .ttt-board { grid-template-columns: repeat(3, 86px); }
+      .ttt-cell { width:86px;height:86px; }
+      .oth-board { grid-template-columns: repeat(8, 42px); }
+      .oth-cell { width:42px;height:42px; }
+      .disc { width:34px;height:34px; }
+    }
+
+    /* Doppelgamer research lab skin */
+    :root {
+      --clone: #00ff9d;
+      --human: #7f77dd;
+      --warn: #ff6b35;
+      --lab: #0a0a14;
+      --scan: rgba(0,255,157,.18);
+    }
+    body {
+      background:
+        radial-gradient(circle at 50% 0%, rgba(0,255,157,.13), transparent 24rem),
+        radial-gradient(circle at 12% 18%, rgba(127,119,221,.14), transparent 22rem),
+        linear-gradient(180deg, #0a0a14, #050510 62%, #090912);
+    }
+    body::before {
+      background-image:
+        linear-gradient(rgba(0,255,157,.055) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,255,157,.045) 1px, transparent 1px),
+        radial-gradient(circle at 50% 50%, transparent 0 90px, rgba(0,255,157,.14) 91px 92px, transparent 93px),
+        linear-gradient(90deg, transparent calc(50% - 1px), rgba(0,255,157,.12) 50%, transparent calc(50% + 1px)),
+        linear-gradient(transparent calc(50% - 1px), rgba(0,255,157,.12) 50%, transparent calc(50% + 1px));
+      background-size: 46px 46px, 46px 46px, 460px 460px, 460px 460px, 460px 460px;
+      animation: drift 36s linear infinite;
+      opacity: .55;
+    }
+    .topbar, .stage, .side {
+      border-radius: 10px;
+      border-color: rgba(0,255,157,.26);
+      background: linear-gradient(145deg, rgba(10,10,20,.92), rgba(8,12,24,.72));
+      box-shadow: 0 0 0 1px rgba(127,119,221,.08), 0 30px 90px rgba(0,0,0,.48), inset 0 0 40px rgba(0,255,157,.035);
+    }
+    h1, .game-head h2, .hud, .terminal, .meter-value, .threat-card strong { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    h1 { color: var(--clone); text-shadow: 0 0 28px rgba(0,255,157,.35); letter-spacing: .02em; }
+    button, select {
+      border-radius: 6px;
+      border-color: rgba(0,255,157,.34);
+      background: rgba(7,12,22,.88);
+      color: #e8fff7;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.02);
+    }
+    button:hover { box-shadow: 0 0 24px rgba(0,255,157,.18), inset 0 0 18px rgba(0,255,157,.06); }
+    .nav button.active { background: var(--clone); color: #020806; box-shadow: 0 0 28px rgba(0,255,157,.4); }
+    .score { grid-template-columns: 1fr; }
+    #sideControls { display:block; }
+    .score div, .history div, .banner, .pill {
+      border-radius: 6px;
+      border-color: rgba(0,255,157,.22);
+      background: rgba(255,255,255,.035);
+    }
+    .score strong { color: var(--clone); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .banner.win, .flash-win { animation: labWin .42s ease; }
+    .banner.loss, .flash-loss { animation: labLoss .42s ease; }
+    .banner.draw, .flash-draw { animation: labDraw .42s ease; }
+    @keyframes labWin { 50% { box-shadow: 0 0 90px rgba(127,119,221,.55); background: rgba(127,119,221,.26); } }
+    @keyframes labLoss { 50% { box-shadow: 0 0 90px rgba(226,75,74,.55); background: rgba(226,75,74,.24); } }
+    @keyframes labDraw { 50% { box-shadow: 0 0 80px rgba(148,163,184,.35); background: rgba(148,163,184,.18); } }
+    .lab-layout { display:grid; grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr); gap:16px; align-items:start; }
+    .arena-panel, .intel-panel, .dossier {
+      position: relative;
+      border: 1px solid rgba(0,255,157,.24);
+      background: rgba(4,8,18,.68);
+      padding: 16px;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .arena-panel::before, .intel-panel::before, .dossier::before {
+      content: "[";
+      position:absolute;
+      left:8px;
+      top:3px;
+      color:var(--clone);
+      opacity:.82;
+      font-family: monospace;
+    }
+    .arena-panel::after, .intel-panel::after, .dossier::after {
+      content: "]";
+      position:absolute;
+      right:8px;
+      top:3px;
+      color:var(--clone);
+      opacity:.82;
+      font-family: monospace;
+    }
+    .hud { display:flex; flex-wrap:wrap; gap:10px; margin:0 0 14px; color:#dff; }
+    .hud span { border:1px solid rgba(0,255,157,.3); padding:8px 10px; border-radius:4px; background:rgba(0,255,157,.045); }
+    .live-dot { display:inline-block; width:9px; height:9px; border-radius:50%; background:var(--clone); box-shadow:0 0 16px var(--clone); animation:pulse 1s infinite alternate; margin-right:8px; }
+    .agent-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(145px,1fr)); gap:9px; margin:10px 0 14px; }
+    .threat-card { text-align:left; min-height:70px; border-color: var(--level, rgba(0,255,157,.3)); }
+    .threat-card.active { background: color-mix(in srgb, var(--level) 18%, transparent); box-shadow:0 0 24px color-mix(in srgb, var(--level) 28%, transparent); }
+    .threat-card small { display:block; color:var(--muted); margin-top:4px; }
+    .meter { margin:10px 0; }
+    .meter-head { display:flex; justify-content:space-between; gap:10px; color:var(--muted); font-size:12px; letter-spacing:.08em; }
+    .meter-track { height:10px; border:1px solid rgba(0,255,157,.24); background:rgba(255,255,255,.04); margin-top:6px; overflow:hidden; border-radius:999px; }
+    .meter-fill { height:100%; width:var(--v); background:linear-gradient(90deg, var(--human), var(--clone)); box-shadow:0 0 18px currentColor; }
+    .mini-bars { display:grid; gap:8px; margin:12px 0; }
+    .mini-bar { display:grid; grid-template-columns: 88px 1fr 42px; gap:8px; align-items:center; font-family:ui-monospace, monospace; font-size:12px; color:var(--muted); }
+    .mini-bar i { height:8px; width:var(--v); display:block; background:var(--c); box-shadow:0 0 12px var(--c); border-radius:99px; }
+    .mini-bar b { display:block; height:8px; background:rgba(255,255,255,.055); border-radius:99px; overflow:hidden; }
+    .badge-warn { display:inline-block; color:#140600; background:var(--warn); padding:7px 9px; border-radius:4px; font-weight:900; box-shadow:0 0 18px rgba(255,107,53,.35); }
+    .radar { width:100%; max-width:260px; margin:8px auto; display:block; filter: drop-shadow(0 0 10px rgba(0,255,157,.22)); }
+    .split-3 { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:12px 0; }
+    .stat-chip { border:1px solid rgba(255,255,255,.12); border-radius:6px; padding:10px; background:rgba(255,255,255,.035); }
+    .stat-chip small { display:block; color:var(--muted); font-size:11px; }
+    .stat-chip strong { display:block; color:var(--clone); font-family:monospace; font-size:20px; }
+    .hex-grid { width:min(600px,100%); margin:22px auto; display:grid; grid-template-columns:repeat(3, 112px); justify-content:center; gap:12px 16px; }
+    .hex {
+      width:112px; height:98px; clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);
+      border:0; border-radius:0; display:grid; place-items:center; color:white; background:rgba(255,255,255,.04);
+      box-shadow: inset 0 0 0 2px var(--m), 0 0 22px color-mix(in srgb, var(--m) 30%, transparent);
+    }
+    .hex:hover { transform:scale(1.08); box-shadow: inset 0 0 0 2px var(--m), 0 0 34px var(--m); }
+    .hex.locked { filter:grayscale(.9); opacity:.36; }
+    .hex em { display:block; font-style:normal; font-size:26px; }
+    .hex span { font-size:11px; font-family:monospace; letter-spacing:.06em; }
+    .energy { width:min(560px,100%); margin:10px auto; }
+    .energy .meter-fill { background:linear-gradient(90deg, #ba7517, var(--clone)); }
+    .ttt-board { background:rgba(10,10,20,.88); border:1px solid rgba(255,255,255,.08); box-shadow:0 0 44px rgba(127,119,221,.14); }
+    .ttt-cell { border-radius:4px; background:#111124; border-color:rgba(255,255,255,.08); }
+    .ttt-cell.x { color:var(--human); text-shadow:0 0 22px var(--human); }
+    .ttt-cell.o { color:var(--clone); text-shadow:0 0 22px var(--clone); }
+    .cf-board { background:#0a1628; border-radius:8px; border:1px solid rgba(0,255,157,.18); }
+    .disc1 { background: radial-gradient(circle at 30% 25%, #c7c2ff, var(--human) 38%, #322b84); box-shadow:0 0 20px var(--human); }
+    .disc2 { background: radial-gradient(circle at 30% 25%, #d8fff0, var(--clone) 38%, #006b42); box-shadow:0 0 20px var(--clone); }
+    .chess-board { border-color:#050510; box-shadow:0 0 0 1px rgba(0,255,157,.22), 0 26px 70px rgba(0,0,0,.46); }
+    .chess-board .light { background:#2d2d4a; color:#e8e8ff; }
+    .chess-board .dark { background:#1a1a2e; color:var(--clone); }
+    .chess-board .sq { text-shadow:0 0 14px currentColor; }
+    .felt { background:#0a1f15; border:1px solid rgba(0,255,157,.2); }
+    .oth-cell { border-radius:2px; background:#0a1f15; border:1px solid rgba(255,255,255,.12); }
+    .black { background:radial-gradient(circle at 30% 25%, #c9c2ff, var(--human) 42%, #30276c); box-shadow:0 0 18px rgba(127,119,221,.45); }
+    .white { background:radial-gradient(circle at 30% 25%, #d9fff1, var(--clone) 42%, #006b42); box-shadow:0 0 18px rgba(0,255,157,.45); }
+    .check-board { border-color:#2b1707; box-shadow:0 0 0 1px rgba(239,159,39,.2), 0 24px 70px rgba(0,0,0,.45); }
+    .check-board .light { background:#0d0a05; }
+    .check-board .dark { background:#1a1205; }
+    .redp { background:radial-gradient(circle at 30% 25%, #d7d1ff, var(--human) 38%, #30276c); }
+    .blackp { background:radial-gradient(circle at 30% 25%, #ffe4b5, #ef9f27 38%, #5f3300); }
+    .g-board { background:#f0e6c8; border:12px solid #0a0a14; }
+    .sblack { background:radial-gradient(circle at 30% 25%, #ffffff80, #1a1a2e 38%, #040408); }
+    .swhite { background:radial-gradient(circle at 30% 25%, #d8fff0, #1D9E75 42%, #063d2e); }
+    .nim-row { background:rgba(5,5,8,.78); border-color:#00d4ff; border-radius:6px; }
+    .match { width:6px; height:60px; background:#00d4ff; box-shadow:0 0 16px #00d4ff; }
+    .match::before { content:""; display:block; width:12px; height:12px; margin-left:-3px; border-radius:50%; background:#ff6b35; box-shadow:0 0 14px #ff6b35; }
+    @media (max-width: 1100px) {
+      .lab-layout { grid-template-columns:1fr; }
+      .hex-grid { grid-template-columns:repeat(2, 112px); }
+      .split-3 { grid-template-columns:1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="particles" id="particles"></div>
+  <main class="app">
+    <header class="topbar">
+      <div>
+        <h1>👾 DOPPELGAMER ARCADE</h1>
+        <p class="sub">Behavioral cloning arena: every move becomes telemetry, every bot becomes a suspect, and every board watches back.</p>
+      </div>
+      <nav class="nav" id="nav"></nav>
+    </header>
+    <section class="layout">
+      <div class="stage" id="stage"></div>
+      <aside class="side">
+        <div class="pillrow" id="sideControls"></div>
+        <div class="score" id="score"></div>
+        <div class="banner" id="banner">Pick a game.</div>
+        <h3>Match History</h3>
+        <div class="history" id="history"></div>
+      </aside>
+    </section>
+  </main>
+  <script>
+    const $ = s => document.querySelector(s);
+    const stage = $("#stage"), nav = $("#nav"), scoreBox = $("#score"), banner = $("#banner"), historyBox = $("#history"), sideControls = $("#sideControls");
+    const games = ["RPS+", "Tic-Tac-Toe", "Connect Four", "Chess", "Othello", "Checkers", "Gomoku", "Nim"];
+    let current = "RPS+", state = {};
+    const audio = { on: true, ctx: null };
+    function beep(freq=440, dur=.07, type="sine") {
+      if (!audio.on) return;
+      audio.ctx ||= new (window.AudioContext || window.webkitAudioContext)();
+      const o = audio.ctx.createOscillator(), g = audio.ctx.createGain();
+      o.type = type; o.frequency.value = freq; g.gain.value = .04;
+      o.connect(g); g.connect(audio.ctx.destination); o.start();
+      g.gain.exponentialRampToValueAtTime(.0001, audio.ctx.currentTime + dur); o.stop(audio.ctx.currentTime + dur);
+    }
+    function burst(color="#22d3ee", n=20) {
+      const p = $("#particles"), cx = innerWidth/2, cy = innerHeight/2;
+      for (let i=0;i<n;i++) {
+        const el = document.createElement("i");
+        el.className = "particle"; el.style.left = cx+"px"; el.style.top = cy+"px"; el.style.background = color;
+        const a = Math.random()*Math.PI*2, d = 70 + Math.random()*190;
+        el.style.setProperty("--x", Math.cos(a)*d+"px"); el.style.setProperty("--y", Math.sin(a)*d+"px");
+        p.appendChild(el); setTimeout(()=>el.remove(), 800);
+      }
+    }
+    function confetti() {
+      const colors = ["#22d3ee","#fb7185","#facc15","#22c55e","#a78bfa"];
+      for (let i=0;i<80;i++) {
+        const el = document.createElement("i"); el.className = "confetti";
+        el.style.left = Math.random()*100+"vw"; el.style.top = "-20px"; el.style.background = colors[i%colors.length];
+        el.style.animationDelay = Math.random()*.25+"s"; document.body.appendChild(el); setTimeout(()=>el.remove(), 1700);
+      }
+    }
+    function setBanner(text, kind="") {
+      banner.textContent = text; banner.className = "banner show " + kind; setTimeout(()=>banner.classList.remove("show"), 420);
+    }
+    function hist(text) {
+      state.history ||= []; state.history.unshift(text); state.history = state.history.slice(0,5);
+      historyBox.innerHTML = state.history.map(x=>`<div>${x}</div>`).join("");
+    }
+    function score(items) { scoreBox.innerHTML = items.map(([k,v])=>`<div><span>${k}</span><strong>${v}</strong></div>`).join(""); }
+    function controls(html) { sideControls.innerHTML = html; }
+    function head(title, sub="") { return `<div class="game-head"><div><h2>${title}</h2><p class="sub">${sub}</p></div></div>`; }
+    const pct = n => Math.max(0, Math.min(100, Math.round(n)));
+    function hud(items) { return `<div class="hud">${items.map(x=>`<span>[${x}]</span>`).join("")}</div>`; }
+    function meter(label, value, note="") {
+      const v = pct(value);
+      return `<div class="meter"><div class="meter-head"><span>${label}</span><span class="meter-value">${v}% ${note}</span></div><div class="meter-track"><i class="meter-fill" style="--v:${v}%"></i></div></div>`;
+    }
+    function miniBars(rows) {
+      return `<div class="mini-bars">${rows.map(([label,value,color])=>`<div class="mini-bar"><span>${label}</span><b><i style="--v:${pct(value)}%;--c:${color}"></i></b><span>${pct(value)}%</span></div>`).join("")}</div>`;
+    }
+    function radar(labels, a, b) {
+      const cx=110, cy=105, r=78;
+      const pts = vals => vals.map((v,i)=>{ const ang=-Math.PI/2+i*2*Math.PI/vals.length; const rr=r*(v/100); return `${cx+Math.cos(ang)*rr},${cy+Math.sin(ang)*rr}`; }).join(" ");
+      const spokes = labels.map((l,i)=>{ const ang=-Math.PI/2+i*2*Math.PI/labels.length; const x=cx+Math.cos(ang)*r, y=cy+Math.sin(ang)*r; return `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="#ffffff20"/><text x="${cx+Math.cos(ang)*(r+24)}" y="${cy+Math.sin(ang)*(r+20)}" fill="#a6b0c3" font-size="9" text-anchor="middle">${l}</text>`; }).join("");
+      return `<svg class="radar" viewBox="0 0 220 220"><polygon points="${pts([100,100,100,100,100])}" fill="none" stroke="#ffffff16"/>${spokes}<polygon points="${pts(a)}" fill="rgba(127,119,221,.22)" stroke="#7f77dd" stroke-width="2"/><polygon points="${pts(b)}" fill="rgba(0,255,157,.20)" stroke="#00ff9d" stroke-width="2"/></svg>`;
+    }
+    function threatCards(active, cards) {
+      return `<div class="agent-grid">${cards.map(([name,level,desc])=>`<button class="threat-card ${active===name?"active":""}" data-agent="${name}" style="--level:${level}"><strong>${name}</strong><small>${desc}</small></button>`).join("")}</div>`;
+    }
+    function terminal(lines) { return `<div class="terminal">${lines.map(x=>`<div>${x}</div>`).join("")}</div>`; }
+    games.forEach(g => { const b=document.createElement("button"); b.textContent=g; b.onclick=()=>load(g); nav.appendChild(b); });
+    function markNav(){ [...nav.children].forEach(b=>b.classList.toggle("active", b.textContent===current)); }
+    function load(g){ current=g; state={history:[]}; markNav(); historyBox.innerHTML=""; ({ "RPS+": rps, "Tic-Tac-Toe": ttt, "Connect Four": cf, Chess: chess, Othello: oth, Checkers: chk, Gomoku: gom, Nim: nim })[g].init(); }
+    function aiDelay(fn){ setBanner("AI thinking" + "...", "thinking"); setTimeout(fn, 520); }
+
+    const rpsRules = {
+      Rock: ["Scissors","Lizard"], Paper: ["Rock","Spock"], Scissors: ["Paper","Lizard"], Lizard: ["Spock","Paper"], Spock: ["Scissors","Rock"]
+    };
+    const rpsText = { "Rock>Scissors":"Rock crushes Scissors", "Rock>Lizard":"Rock crushes Lizard", "Paper>Rock":"Paper covers Rock", "Paper>Spock":"Paper disproves Spock", "Scissors>Paper":"Scissors cuts Paper", "Scissors>Lizard":"Scissors decapitates Lizard", "Lizard>Spock":"Lizard poisons Spock", "Lizard>Paper":"Lizard eats Paper", "Spock>Scissors":"Spock smashes Scissors", "Spock>Rock":"Spock vaporizes Rock" };
+    const rps = {
+      init(){ state={wins:0,losses:0,draws:0,rounds:[], your:[], clone:[], diff:"Random", energy:4, maxEnergy:6, history:[]}; this.render(); },
+      render(){
+        const moves=["Rock","Paper","Scissors","Lizard","Spock","RECHARGE"], colors={Rock:"#e24b4a",Paper:"#378add",Scissors:"#e24b4a",Lizard:"#639922",Spock:"#7f77dd",RECHARGE:"#ba7517"}, icons={Rock:"◆",Paper:"▰",Scissors:"✂",Lizard:"◖",Spock:"Ⅴ",RECHARGE:"⚡"};
+        const probs=this.probs();
+        stage.innerHTML = head("RPS+ // Interrogation Protocol", "Six-choice surveillance duel. Recharge restores energy; every other move drains it and teaches the clone.")+
+          hud([`ROUND ${state.your.length+1}/∞`,`SCORE: YOU ${state.wins} | CLONE ${state.losses}`,`ENERGY: ${"█".repeat(state.energy)}${"░".repeat(state.maxEnergy-state.energy)} ${pct(state.energy/state.maxEnergy*100)}%`,`FIDELITY: ${this.fidelity()}%`])+
+          `<div class="lab-layout"><section class="arena-panel"><div class="controls">${threatCards(state.diff,[["Random","#22c55e","low threat"],["Heuristic","#facc15","counters favorites"],["NGram Clone","#ff6b35","tracks sequences"],["LSTM Clone","#e24b4a","trained on 847 moves"]])}<button id="rpsReset">RESET SESSION</button></div>
+          <div class="countdown" id="countdown">SUBJECT: choose a gesture</div><div class="pips">${[0,1,2,3,4].map(i=>`<i class="pip ${state.rounds[i]||""}"></i>`).join("")}</div>
+          <div class="hex-grid">${moves.map(m=>`<button class="hex ${state.energy<=0&&m!=="RECHARGE"?"locked":""}" data-m="${m}" style="--m:${colors[m]}" title="${m==="RECHARGE"?"Recharge restores energy":Object.entries(rpsText).find(([k])=>k.startsWith(m+'>'))?.[1]||""}" ${state.energy<=0&&m!=="RECHARGE"?"disabled":""}><em>${icons[m]}</em><span>${m}</span></button>`).join("")}</div>
+          <div class="energy">${meter("ENERGY RESERVE", state.energy/state.maxEnergy*100, "POWER MOVES DRAIN")}</div><div class="rule-tip" id="ruleTip">Hover a hex to reveal the interrogation note.</div></section>
+          <aside class="intel-panel"><h3><span class="live-dot"></span>CLONE IS WATCHING...</h3>${miniBars(moves.map(m=>[m,probs[m]||0,colors[m]]))}${meter("BEHAVIORAL DRIFT", this.fidelity())}<div>${this.recency()?`<span class="badge-warn">RECENCY BIAS DETECTED</span>`:""}</div><h4>LAST FIVE MOVES</h4>${terminal((state.history||[]).map(x=>`> ${x}`))}</aside></div>`;
+        document.querySelectorAll(".threat-card").forEach(b=>b.onclick=()=>{state.diff=b.dataset.agent;this.render();});
+        $("#rpsReset").onclick=()=>this.init();
+        document.querySelectorAll(".hex").forEach(b=>{ b.onclick=()=>this.play(b.dataset.m); b.onmouseenter=()=>$("#ruleTip").textContent=b.title; });
+        score([["Wins",state.wins],["Losses",state.losses],["Draws",state.draws]]);
+      },
+      probs(){
+        const moves=["Rock","Paper","Scissors","Lizard","Spock","RECHARGE"], total=Math.max(1,state.your.length);
+        const base=Object.fromEntries(moves.map(m=>[m,Math.round(100/moves.length)]));
+        moves.forEach(m=>base[m]=Math.round((state.your.filter(x=>x===m).length/total)*70+30/moves.length));
+        return base;
+      },
+      fidelity(){ return pct(Math.min(94, 18 + state.your.length*7 + (state.diff.includes("Clone")?18:0))); },
+      recency(){ return state.your.length>=3 && new Set(state.your.slice(-3)).size===1; },
+      ai(){
+        const moves=Object.keys(rpsRules);
+        if(state.diff==="Random" || state.your.length<2) return moves[Math.floor(Math.random()*5)];
+        if(state.diff==="Heuristic"){
+          const fav = moves.map(m=>[m,state.your.filter(x=>x===m).length]).sort((a,b)=>b[1]-a[1])[0][0];
+          return moves.find(m=>rpsRules[m].includes(fav));
+        }
+        const last = state.diff==="NGram Clone" ? state.your.slice(-2)[0] || state.your.at(-1) : state.your.at(-1);
+        return moves.find(m=>rpsRules[m].includes(last));
+      },
+      play(m){
+        const cd=$("#countdown"); let steps=["3","2","1","SHOOT!"], i=0; document.querySelectorAll(".choice").forEach(b=>b.disabled=true);
+        document.querySelectorAll(".hex").forEach(b=>b.disabled=true);
+        const tick=()=>{ cd.textContent=steps[i++]; beep(280+i*80,.05,"square"); if(i<steps.length) setTimeout(tick,360); else aiDelay(()=>this.resolve(m)); }; tick();
+      },
+      resolve(m){
+        const a=this.ai(); state.your.push(m); state.clone.push(a);
+        if(m==="RECHARGE") state.energy=Math.min(state.maxEnergy,state.energy+2); else state.energy=Math.max(0,state.energy-1);
+        let res=m==="RECHARGE" ? (a==="RECHARGE"?"draw":"loss") : m===a?"draw":rpsRules[m].includes(a)?"win":"loss";
+        if(res==="win"){state.wins++;state.rounds.push("win");burst("#22c55e");document.querySelector(`[data-m="${m}"]`).classList.add("win-glow");}
+        if(res==="loss"){state.losses++;state.rounds.push("loss");stage.classList.add("shake");setTimeout(()=>stage.classList.remove("shake"),380);}
+        if(res==="draw"){state.draws++;state.rounds.push("");}
+        const rule=m==="RECHARGE"?"Recharge logged. Clone attacks the energy window.":(res==="draw"?"Mirror gesture detected.":rpsText[`${res==="win"?m:a}>${res==="win"?a:m}`]);
+        hist(`YOU ${m} vs CLONE ${a}: ${res.toUpperCase()} // ${rule}`); setBanner(res==="win"?"WIN":res==="loss"?"LOSE":"DRAW", res); beep(res==="win"?880:res==="loss"?130:440,.12);
+        if(state.wins===3||state.losses===3){ setBanner(state.wins===3?"MATCH WIN":"MATCH LOSS"); if(state.wins===3) confetti(); }
+        this.render();
+      }
+    };
+
+    const ttt = {
+      init(){ state={b:Array(9).fill(""), turn:"X", mode:"AI", diff:"Hard", x:0,o:0,d:0,best:5, history:[]}; this.render(); },
+      wins:[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]],
+      render(){
+        const moves=state.b.filter(Boolean).length, certainty=pct(24+moves*9+(state.diff==="Hard"?14:0)), pattern=pct(41+moves*6);
+        stage.innerHTML=head("Tic-Tac-Toe // Mirror Test","PLAYER [YOU] vs [???]. You don't know which one is you.")+
+          hud([`MOVE ${moves}`,`CERTAINTY ${certainty}%`,`PATTERN MATCH ${pattern}%`])+
+          `<div class="controls"><select id="tttMode"><option>AI</option><option>Human</option></select><select id="tttDiff"><option>Easy</option><option>Hard</option></select><select id="tttBest"><option>3</option><option>5</option><option>7</option></select><button id="tttReset">New Round</button><button id="sound">Sound ${audio.on?"On":"Off"}</button></div>
+          <div class="split-3"><div class="stat-chip"><small>CERTAINTY</small><strong>${certainty}%</strong></div><div class="stat-chip"><small>MOVE #</small><strong>${moves}</strong></div><div class="stat-chip"><small>PATTERN MATCH</small><strong>${pattern}%</strong></div></div>
+          <div class="board-wrap"><div class="grid ttt-board">${state.b.map((v,i)=>`<button class="cell ttt-cell ${v.toLowerCase()} ${v?"":"empty"}" data-preview="${state.turn}" data-i="${i}">${v}</button>`).join("")}</div></div>`;
+        controls(`<div class="dossier"><h3><span class="live-dot"></span>BEHAVIORAL ECHO</h3>${radar(["Aggro","Caution","Center","Corner","Edge"],[72,38,82,68,31],[pct(35+moves*8),pct(70-moves*3),state.b[4]?86:28,pct(42+moves*4),pct(30+moves*5)])}<p class="sub">YOUR historical profile is purple. THIS GAME is teal.</p>${pattern>78?`<span class="badge-warn">HIGH FIDELITY — Is this you or your clone?</span>`:""}</div>`);
+        $("#tttMode").value=state.mode; $("#tttMode").onchange=e=>state.mode=e.target.value; $("#tttDiff").value=state.diff; $("#tttDiff").onchange=e=>state.diff=e.target.value; $("#tttBest").value=state.best; $("#tttBest").onchange=e=>state.best=+e.target.value; $("#tttReset").onclick=()=>{state.b=Array(9).fill("");state.turn="X";this.render();}; $("#sound").onclick=()=>{audio.on=!audio.on;this.render();};
+        document.querySelectorAll(".ttt-cell").forEach(c=>c.onclick=()=>this.move(+c.dataset.i));
+        score([["X Wins",state.x],["O Wins",state.o],["Draws",state.d]]);
+      },
+      winner(b=state.b){ for(const w of this.wins) if(b[w[0]]&&b[w[0]]===b[w[1]]&&b[w[1]]===b[w[2]]) return [b[w[0]],w]; return b.every(Boolean)?["D",[]]:null; },
+      move(i){ if(state.b[i]||this.winner()) return; state.b[i]=state.turn; beep(520,.05); let w=this.winner(); if(w) return this.end(w); state.turn=state.turn==="X"?"O":"X"; this.render(); if(state.mode==="AI"&&state.turn==="O") aiDelay(()=>this.ai()); },
+      ai(){ const empt=state.b.map((v,i)=>v?"":i).filter(x=>x!==""); let m=empt[Math.floor(Math.random()*empt.length)]; if(state.diff==="Hard") m=this.bestMove(); this.move(m); },
+      bestMove(){ let best=-99, move=0; for(let i=0;i<9;i++) if(!state.b[i]){ state.b[i]="O"; let s=this.minimax(false); state.b[i]=""; if(s>best){best=s;move=i;} } return move; },
+      minimax(max){ const w=this.winner(); if(w) return w[0]==="O"?1:w[0]==="X"?-1:0; let best=max?-99:99; for(let i=0;i<9;i++) if(!state.b[i]){ state.b[i]=max?"O":"X"; best=max?Math.max(best,this.minimax(false)):Math.min(best,this.minimax(true)); state.b[i]=""; } return best; },
+      end([who,line]){ if(who==="X")state.x++; else if(who==="O")state.o++; else state.d++; setBanner(who==="D"?"DRAW":who==="X"?"YOU DETECTED THE CLONE":"THE CLONE FOOLED YOU"); if(who!=="D"){ confetti(); line.forEach(i=>document.querySelector(`[data-i="${i}"]`)?.classList.add("win-glow")); } hist(`${who==="D"?"Draw":who+" won"} on move ${state.b.filter(Boolean).length}. ${state.diff==="Hard"?"Agent revealed: Hard minimax.":"Agent identity unresolved."}`); beep(880,.16); setTimeout(()=>{state.b=Array(9).fill("");state.turn="X";this.render();},1200); }
+    };
+
+    const cf = {
+      init(){ state={b:Array.from({length:6},()=>Array(7).fill(0)), p:1, mode:"AI", diff:"Medium", p1:0,p2:0,moves:0,stack:[],history:[]}; this.render(); },
+      render(){
+        const threats=[0,1,2,3,4,5,6].map(c=>30+Math.abs(3-c)*7+((state.moves+c*11)%37));
+        const winProb=pct(52 + (state.p1-state.p2)*10 + (state.moves%5)*3);
+        stage.innerHTML=head("Connect Four // Surveillance Grid","Every disc is a data point being logged by your clone.")+
+          hud([`GAME #47`,`YOUR PROFILE: 847 MOVES LOGGED`,`CLONE FIDELITY: ${pct(55+state.moves*3)}%`])+
+          `<div class="controls"><select id="cfMode"><option>AI</option><option>Human</option></select><select id="cfDiff"><option>Easy</option><option>Medium</option><option>Hard</option></select><button id="cfUndo">Undo</button><button id="cfNew">New Round</button></div>
+          <div class="cf-area"><div class="cf-arrows">${[0,1,2,3,4,5,6].map(c=>`<button class="cf-arrow" data-c="${c}">v</button>`).join("")}</div><div class="cf-board">${state.b.flatMap((r,ri)=>r.map((v,c)=>`<button class="hole ${v===1?"disc1":v===2?"disc2":""}" data-c="${c}" data-r="${ri}"></button>`)).join("")}</div></div>`;
+        controls(`<div class="dossier"><h3>CLONE TARGETING MAP</h3>${miniBars(threats.map((v,i)=>[`COL ${i+1}`,v,v>72?"#e24b4a":v>55?"#ef9f27":"#00ff9d"]))}<h3>WIN PROBABILITY</h3>${meter("YOUR WIN PROBABILITY", winProb)}<p class="sub">CLONE'S LAST MOVE MATCHES YOUR HISTORICAL PREFERENCE: ${pct(66+state.moves*2)}%</p><h4>BEHAVIORAL INSIGHT</h4>${terminal([`Clone chose col ${((state.stack.at(-1)?.c ?? 3)+1)}. You chose this lane in ${pct(48+state.moves*2)}% of similar board states.`])}</div>`);
+        $("#cfMode").value=state.mode; $("#cfMode").onchange=e=>state.mode=e.target.value; $("#cfDiff").value=state.diff; $("#cfDiff").onchange=e=>state.diff=e.target.value; $("#cfUndo").onclick=()=>{let last=state.stack.pop(); if(last){state.b[last.r][last.c]=0;state.p=last.p;state.moves--;this.render();}}; $("#cfNew").onclick=()=>this.init();
+        document.querySelectorAll("[data-c]").forEach(b=>b.onclick=()=>this.drop(+b.dataset.c));
+        score([["Player 1",state.p1],["Player 2",state.p2],["Moves",state.moves]]);
+      },
+      drop(c){ let r=5; while(r>=0&&state.b[r][c])r--; if(r<0){stage.classList.add("shake");setTimeout(()=>stage.classList.remove("shake"),360);return;} state.b[r][c]=state.p; state.stack.push({r,c,p:state.p}); state.moves++; beep(120,.08,"triangle"); let w=this.win(); if(w) return this.end(w); state.p=state.p===1?2:1; this.render(); if(state.mode==="AI"&&state.p===2) aiDelay(()=>this.drop(this.ai())); },
+      win(){ const B=state.b, dirs=[[1,0],[0,1],[1,1],[1,-1]]; for(let r=0;r<6;r++)for(let c=0;c<7;c++)if(B[r][c])for(const[dR,dC]of dirs){let a=[];for(let k=0;k<4;k++){let R=r+dR*k,C=c+dC*k;if(B[R]?.[C]===B[r][c])a.push([R,C]);}if(a.length===4)return [B[r][c],a];} return state.moves===42?["D",[]]:null; },
+      ai(){ const legal=[0,1,2,3,4,5,6].filter(c=>!state.b[0][c]); if(state.diff==="Easy")return legal[Math.floor(Math.random()*legal.length)]; for(const c of legal){let r=5;while(state.b[r][c])r--;state.b[r][c]=2;if(this.win()?.[0]===2){state.b[r][c]=0;return c;}state.b[r][c]=0;} for(const c of legal){let r=5;while(state.b[r][c])r--;state.b[r][c]=1;if(this.win()?.[0]===1){state.b[r][c]=0;return c;}state.b[r][c]=0;} return legal.sort((a,b)=>Math.abs(a-3)-Math.abs(b-3))[0]; },
+      end([who,line]){ if(who===1)state.p1++; else if(who===2)state.p2++; setBanner(who==="D"?"DRAW":`PATTERN DETECTED: ${who===1?"YOU":"CLONE"} WINS`); line.forEach(([r,c])=>document.querySelector(`[data-r="${r}"][data-c="${c}"]`)?.classList.add("win-glow","scan")); burst(who===1?"#7f77dd":"#00ff9d",36); hist(who==="D"?"Draw":`Player ${who} won in ${state.moves}. DATA POINT LOGGED +${state.moves}`); setTimeout(()=>{state.b=Array.from({length:6},()=>Array(7).fill(0));state.p=1;state.moves=0;state.stack=[];this.render();},1600); }
+    };
+
+    const oth = {
+      dirs:[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]],
+      init(){ state={b:Array.from({length:8},()=>Array(8).fill(0)), p:1, mode:"AI", diff:"Medium", histScores:[],stack:[],history:[]}; state.b[3][3]=2;state.b[4][4]=2;state.b[3][4]=1;state.b[4][3]=1; this.render(); },
+      moves(p=state.p,b=state.b){ let out=[]; for(let r=0;r<8;r++)for(let c=0;c<8;c++)if(!b[r][c]){let flips=[];for(const[dR,dC]of this.dirs){let a=[],R=r+dR,C=c+dC;while(b[R]?.[C]===3-p){a.push([R,C]);R+=dR;C+=dC;}if(a.length&&b[R]?.[C]===p)flips.push(...a);} if(flips.length)out.push({r,c,flips});} return out; },
+      render(){
+        const ms=this.moves(); let black=state.b.flat().filter(x=>x===1).length, white=state.b.flat().filter(x=>x===2).length;
+        const total=Math.max(1,black+white), mirror=pct(38+Math.abs(black-white)*2+state.stack.length*3);
+        stage.innerHTML=head("Othello // Identity Overwrite","Every flipped disc is a part of your identity being overwritten.")+
+          hud([`YOU: ${black}`,`CLONE: ${white}`,`CONTROL DELTA: ${black-white}`])+
+          meter("LIVE TERRITORY", black/total*100, `YOU ${black} / CLONE ${white}`)+
+          `<div class="controls"><select id="othMode"><option>AI</option><option>Human</option></select><select id="othDiff"><option>Medium</option><option>Hard</option></select><button id="othUndo">Undo</button><button id="othNew">Restart</button></div>
+          <div class="board-wrap"><div class="felt"><div class="oth-board">${state.b.flatMap((row,r)=>row.map((v,c)=>`<button class="oth-cell ${ms.some(m=>m.r===r&&m.c===c)?"valid":""}" data-r="${r}" data-c="${c}">${v?`<i class="disc ${v===1?"black":"white"}"></i>`:""}</button>`)).join("")}</div></div></div>`;
+        controls(`<div class="dossier"><h3>TERRITORY MAP</h3>${miniBars([["Corners",(([state.b[0][0],state.b[0][7],state.b[7][0],state.b[7][7]].filter(Boolean).length)/4)*100,"#ef9f27"],["Stable discs",pct((black+white)/64*100),"#7f77dd"],["Clone control",white/total*100,"#00ff9d"]])}<h3>BEHAVIORAL MIRROR</h3>${meter("CLONE IS MIRRORING YOUR STRATEGY", mirror)}${miniBars([["D3",72,"#00ff9d"],["C4",64,"#00ff9d"],["F5",51,"#00ff9d"]])}<p class="sub">COGNITIVE BIAS: You over-weight corners. Clone has learned this.</p></div>`);
+        $("#othMode").value=state.mode;$("#othMode").onchange=e=>state.mode=e.target.value;$("#othDiff").value=state.diff;$("#othDiff").onchange=e=>state.diff=e.target.value;$("#othUndo").onclick=()=>{let s=state.stack.pop();if(s){state.b=s.b;state.p=s.p;this.render();}};$("#othNew").onclick=()=>this.init();
+        document.querySelectorAll(".oth-cell").forEach(b=>b.onclick=()=>this.place(+b.dataset.r,+b.dataset.c));
+        score([["Black",black],["White",white],["Turn",state.p===1?"Black":"White"]]);
+      },
+      place(r,c){ let m=this.moves().find(x=>x.r===r&&x.c===c); if(!m)return; state.stack.push({b:state.b.map(x=>x.slice()),p:state.p}); state.b[r][c]=state.p;m.flips.forEach(([R,C])=>state.b[R][C]=state.p); beep(360,.06); state.p=3-state.p; if(!this.moves().length)state.p=3-state.p; let end=!this.moves(1).length&&!this.moves(2).length; this.render(); if(end)return this.end(); if(state.mode==="AI"&&state.p===2)aiDelay(()=>this.ai()); },
+      ai(){ const ms=this.moves(); const weight=m=>m.flips.length + ([0,7].includes(m.r)&&[0,7].includes(m.c)?50:0) + ([0,7].includes(m.r)||[0,7].includes(m.c)?5:0); let m=ms.sort((a,b)=>weight(b)-weight(a))[0]; this.place(m.r,m.c); },
+      end(){ let b=state.b.flat().filter(x=>x===1).length,w=state.b.flat().filter(x=>x===2).length; setBanner(b>w?"BLACK WINS":w>b?"WHITE WINS":"DRAW"); confetti(); hist(`Final count ${b}-${w}`); }
+    };
+
+    const gom = {
+      init(){ state={n:15,b:[],p:1,mode:"AI",moves:0,stack:[],history:[]}; state.b=Array.from({length:state.n},()=>Array(state.n).fill(0)); this.render(); },
+      render(){
+        const acc=pct(48+state.moves*2), patterns=pct(state.moves*1.7);
+        stage.innerHTML=head("Gomoku // Neural Cartography","Japanese ink board overlaid with clone pattern recognition.")+
+          hud([`PATTERNS ${patterns}`,`THREATS BLOCKED ${Math.floor(state.moves/4)}`,`PREDICTION ACCURACY ${acc}%`,`STONES TO WIN 5`])+
+          `<div class="controls"><select id="gomN"><option>15</option><option>13</option><option>19</option></select><select id="gomMode"><option>AI</option><option>Human</option></select><button id="gomUndo">Undo</button><button id="gomNew">Restart</button></div>
+          <div class="controls"><button id="neuralMap">SHOW NEURAL MAP</button><span class="pill">CLONE DETECTED: Open three scan active</span></div>
+          <div class="board-wrap"><div class="g-board" style="grid-template-columns:repeat(${state.n},34px)">${state.b.flatMap((row,r)=>row.map((v,c)=>`<button class="g-cell" data-r="${r}" data-c="${c}">${v?`<i class="stone ${v===1?"sblack":"swhite"} ${state.last?.[0]===r&&state.last?.[1]===c?"last":""}"></i>`:""}</button>`)).join("")}</div></div>`;
+        controls(`<div class="dossier"><h3>PATTERN RECOGNITION FEED</h3>${terminal([`CLONE DETECTED: Open three probe near ${String.fromCharCode(65+(state.last?.[1]||3))}${(state.last?.[0]||6)+1}`,`YOUR PLAY STYLE: Diagonal aggressor (confidence: ${pct(62+state.moves)}%)`,`NEURAL RIPPLE: ${state.moves} stones logged`])}<h3>CLONE CONFIDENCE MAP</h3>${miniBars([["NW zone",52,"#00ff9d"],["Center",84,"#e24b4a"],["SE zone",67,"#7f77dd"]])}${meter("BEHAVIORAL SIGNATURE MATCH", pct(58+state.moves*2))}</div>`);
+        $("#gomN").value=state.n;$("#gomN").onchange=e=>{state.n=+e.target.value;state.b=Array.from({length:state.n},()=>Array(state.n).fill(0));state.p=1;state.moves=0;this.render();};$("#gomMode").value=state.mode;$("#gomMode").onchange=e=>state.mode=e.target.value;$("#gomUndo").onclick=()=>{let m=state.stack.pop();if(m){state.b[m.r][m.c]=0;state.p=m.p;state.moves--;this.render();}};$("#gomNew").onclick=()=>this.init();$("#neuralMap").onclick=()=>setBanner("NEURAL MAP OVERLAY: threat zones projected");
+        document.querySelectorAll(".g-cell").forEach(b=>b.onclick=()=>this.place(+b.dataset.r,+b.dataset.c));
+        score([["Black",state.b.flat().filter(x=>x===1).length],["White",state.b.flat().filter(x=>x===2).length],["Moves",state.moves]]);
+      },
+      place(r,c){ if(state.b[r][c])return; state.stack.push({r,c,p:state.p}); state.b[r][c]=state.p; state.last=[r,c]; state.moves++; beep(220,.045,"triangle"); let line=this.win(r,c); if(line)return this.end(line); state.p=3-state.p; this.render(); if(state.mode==="AI"&&state.p===2)aiDelay(()=>this.ai()); },
+      win(r,c){ const p=state.b[r][c],dirs=[[1,0],[0,1],[1,1],[1,-1]]; for(const[dR,dC]of dirs){let a=[[r,c]]; for(const s of[-1,1]){let R=r+dR*s,C=c+dC*s;while(state.b[R]?.[C]===p){a.push([R,C]);R+=dR*s;C+=dC*s;}} if(a.length>=5)return a;} },
+      ai(){ let empt=[]; for(let r=0;r<state.n;r++)for(let c=0;c<state.n;c++)if(!state.b[r][c])empt.push([r,c]); const scoreMove=([r,c],p)=>{let s=0; for(let R=-2;R<=2;R++)for(let C=-2;C<=2;C++)if(state.b[r+R]?.[c+C]===p)s+=3-Math.max(Math.abs(R),Math.abs(C)); return s;}; let m=empt.sort((a,b)=>(scoreMove(b,2)+scoreMove(b,1)*1.2)-(scoreMove(a,2)+scoreMove(a,1)*1.2))[0]; this.place(m[0],m[1]); },
+      end(line){ setBanner(`${state.p===1?"BLACK":"WHITE"} WINS`); line.forEach(([r,c])=>document.querySelector(`[data-r="${r}"][data-c="${c}"]`)?.classList.add("win-glow")); burst("#dc2626",32); hist(`Win in ${state.moves} moves`); }
+    };
+
+    const nim = {
+      init(){ state={piles:[1,3,5,7], misere:false, mode:"Unbeatable", turn:1, rec:[0,0], history:[]}; this.render(); },
+      render(){ const x=state.piles.reduce((a,b)=>a^b,0), status=x?"WINNING POSITION":"LOSING POSITION", bin=state.piles.map(n=>n.toString(2).padStart(3,"0")).join(" XOR ");
+        stage.innerHTML=head("Nim // Mathematical Interrogation","The clone has solved you via XOR theory. Your deviations are the experiment.")+
+        hud([`SUBJECT: PLAYER`,`SESSION #12`,`NIM-SUM: ${x}`,`STATUS: ${status}`])+
+        `<div class="controls"><select id="nimPreset"><option>Classic</option><option>Fibonacci</option></select><select id="nimMode"><option>Easy</option><option>Unbeatable</option></select><label class="pill"><input type="checkbox" id="misere" ${state.misere?"checked":""}> Misere</label><button id="nimNew">Restart</button></div>
+        <div>${state.piles.map((n,r)=>`<div class="nim-row"><strong>Row ${r+1}</strong>${Array.from({length:n},(_,i)=>`<button class="match" data-r="${r}" data-i="${i}" title="Take through this match"></button>`).join("")}</div>`).join("")}</div>
+        <div class="banner">Nim-sum: ${x.toString(2)} (binary XOR)</div>`;
+        controls(`<div class="dossier"><h3>CLONE DOSSIER</h3>${terminal(["CLONE STATUS: OPERATING AT THEORETICAL MAXIMUM","THIS GAME IS MATHEMATICALLY DETERMINED.","XOR of all pile sizes. If 0, current player loses with perfect play."])}<h3>${bin} = ${x.toString(2).padStart(3,"0")}</h3>${meter("SUBOPTIMAL MOVE RATE", pct(73-state.rec[0]*8+state.rec[1]*5))}<p class="sub">CLONE NOTES: Player avoids taking from the largest pile in 67% of games.</p></div>`);
+        $("#nimPreset").onchange=e=>{state.piles=e.target.value==="Fibonacci"?[1,2,3,5]:[1,3,5,7];this.render();};$("#nimMode").value=state.mode;$("#nimMode").onchange=e=>state.mode=e.target.value;$("#misere").onchange=e=>{state.misere=e.target.checked;};$("#nimNew").onclick=()=>this.init();
+        document.querySelectorAll(".match").forEach(b=>b.onclick=()=>this.take(+b.dataset.r,+b.dataset.i+1));
+        score([["Player",state.rec[0]],["Machine",state.rec[1]],["Turn",state.turn===1?"You":"AI"]]);
+      },
+      take(r,n){ if(state.turn!==1||n<1)return; state.piles[r]-=n; beep(180,.08,"sawtooth"); if(this.done())return this.end(1); state.turn=2; this.render(); aiDelay(()=>this.ai()); },
+      ai(){ let r=0,n=1;if(state.mode==="Unbeatable"){let x=state.piles.reduce((a,b)=>a^b,0); if(x){for(let i=0;i<state.piles.length;i++){let t=state.piles[i]^x;if(t<state.piles[i]){r=i;n=state.piles[i]-t;break;}}}else{r=state.piles.findIndex(Boolean);n=1;}}else{let rows=state.piles.map((p,i)=>p?i:null).filter(x=>x!==null);r=rows[Math.floor(Math.random()*rows.length)];n=1+Math.floor(Math.random()*state.piles[r]);} state.piles[r]-=n; hist(`AI took ${n} from row ${r+1}`); if(this.done())return this.end(2); state.turn=1; this.render(); },
+      done(){ return state.piles.every(x=>x===0); },
+      end(who){ let winner=state.misere?3-who:who; state.rec[winner-1]++; setBanner(winner===1?"WINNER":"THE MACHINE WINS"); if(winner===1){confetti();banner.classList.add("glitch");}else document.body.classList.add("shake"); setTimeout(()=>document.body.classList.remove("shake"),400); hist(`${winner===1?"Player":"AI"} won`); state.piles=[1,3,5,7];state.turn=1;setTimeout(()=>this.render(),1100); }
+    };
+
+    const chk = {
+      init(){ state={b:Array(32).fill(0),p:1,mode:"AI",diff:"Medium",stack:[],moves:0,history:[]}; for(let i=0;i<12;i++)state.b[i]=2; for(let i=20;i<32;i++)state.b[i]=1; this.sel=null; this.render(); },
+      rc(i){ let r=Math.floor(i/4), c=(i%4)*2+((r+1)%2); return [r,c]; }, idx(r,c){ if(r<0||r>7||c<0||c>7||(r+c)%2===0)return -1; return r*4+Math.floor(c/2); },
+      legal(p=state.p,b=state.b){ let jumps=[],moves=[]; for(let i=0;i<32;i++)if(Math.sign(b[i])===p){let [r,c]=this.rc(i), king=Math.abs(b[i])===2, dirs=king?[1,-1]:[p===1?-1:1]; for(const dr of dirs)for(const dc of[-1,1]){let j=this.idx(r+dr,c+dc); if(j>=0&&!b[j])moves.push([i,j,[]]); let mid=this.idx(r+dr,c+dc),to=this.idx(r+dr*2,c+dc*2); if(mid>=0&&to>=0&&Math.sign(b[mid])===-p&&!b[to])jumps.push([i,to,[mid]]);}} return jumps.length?jumps:moves; },
+      render(){ let leg=this.legal(), tos=leg.filter(m=>m[0]===this.sel).map(m=>m[1]), forced=leg.some(m=>m[2].length), pressure=pct(25+state.moves*3+(forced?18:0)); stage.innerHTML=head("Checkers // Tactical Pressure","Mandatory jumps become the trap your clone uses to bait predictable paths.")+
+        hud([`BEHAVIORAL PRESSURE ${pressure}%`, forced?"MANDATORY JUMP: FORCED":"FREE MOVE",`MOVE ${state.moves}`])+
+        meter("BEHAVIORAL PRESSURE", pressure, pressure>=80?"WARNING: PREDICTABLE":"")+
+        `<div class="controls"><select id="chkMode"><option>AI</option><option>Human</option></select><select id="chkDiff"><option>Easy</option><option>Medium</option><option>Hard</option></select><button id="chkUndo">Undo</button><button id="chkNew">Restart</button></div>${forced?`<div class="badge-warn">FORCED JUMP PATH DETECTED</div>`:""}<div class="board-wrap"><div class="wood"><div class="check-board">${Array.from({length:64},(_,sq)=>{let r=Math.floor(sq/8),c=sq%8,di=this.idx(r,c),v=di>=0?state.b[di]:0, cls=(r+c)%2?"dark":"light"; let legalFrom=leg.some(m=>m[0]===di), legalTo=tos.includes(di); return `<button class="sq ${cls} ${this.sel===di?"sel":""} ${legalTo?"legal":""}" data-i="${di}" ${di<0?"disabled":""}>${v?`<span class="piece ${v>0?"redp":"blackp"}">${Math.abs(v)===2?"K":""}</span>`:""}</button>`}).join("")}</div></div></div>`;
+        controls(`<div class="dossier"><h3>CLONE'S TRAP MAP</h3>${miniBars([["Predicted path",pct(44+state.moves*4),"#ef9f27"],["Accuracy",pct(31+state.moves*5),"#00ff9d"],["Forced jump rate",forced?82:37,"#ff6b35"]])}<p class="sub">You were forced into ${forced?3:1} of your last 5 jumps. Your clone has engineered this.</p><h3>PIECE BALANCE</h3>${terminal([`YOU ${state.b.filter(x=>x>0).length} | CLONE ${state.b.filter(x=>x<0).length}`])}</div>`);
+        $("#chkMode").value=state.mode;$("#chkMode").onchange=e=>state.mode=e.target.value;$("#chkDiff").value=state.diff;$("#chkDiff").onchange=e=>state.diff=e.target.value;$("#chkUndo").onclick=()=>{let s=state.stack.pop();if(s){state.b=s.b;state.p=s.p;this.sel=null;this.render();}};$("#chkNew").onclick=()=>this.init();
+        document.querySelectorAll(".sq").forEach(b=>b.onclick=()=>this.click(+b.dataset.i)); score([["Red",state.b.filter(x=>x>0).length],["Black",state.b.filter(x=>x<0).length],["Moves",state.moves]]);
+      },
+      click(i){ let leg=this.legal(); if(this.sel==null){ if(leg.some(m=>m[0]===i)){this.sel=i;this.render();} return; } let m=leg.find(x=>x[0]===this.sel&&x[1]===i); if(!m){this.sel=null;this.render();return;} this.move(m); },
+      move([from,to,caps]){ state.stack.push({b:state.b.slice(),p:state.p}); let piece=state.b[from]; state.b[from]=0; caps.forEach(c=>state.b[c]=0); let [r]=this.rc(to); if(piece===1&&r===0)piece=2;if(piece===-1&&r===7)piece=-2; state.b[to]=piece; state.moves++; beep(260,.07); state.p*=-1; this.sel=null; if(!this.legal().length)return this.end(); this.render(); if(state.mode==="AI"&&state.p===-1)aiDelay(()=>this.ai()); },
+      ai(){ let leg=this.legal(); let m=leg[Math.floor(Math.random()*leg.length)]; if(state.diff!=="Easy")m=leg.sort((a,b)=>b[2].length-a[2].length)[0]; this.move(m); },
+      end(){ setBanner(state.p===1?"BLACK WINS":"RED WINS"); confetti(); hist(`Game over after ${state.moves} moves`); }
+    };
+
+    const chess = {
+      init(){ state={b:["r","n","b","q","k","b","n","r","p","p","p","p","p","p","p","p","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","P","P","P","P","P","P","P","P","R","N","B","Q","K","B","N","R"],p:"w",sel:null,mode:"AI",diff:"Easy",stack:[],history:[]}; this.render(); },
+      render(){ const moveNo=state.stack.length+1, mat=this.material(); stage.innerHTML=head("Chess // Surveillance Dossier","Your clone knows your openings, favorite pieces, and blunder patterns.")+
+        hud([`♟ YOU: 1500 ELO`,`CLONE FIDELITY: ${pct(62+moveNo*2)}%`,`MOVE: ${moveNo}`,`TIME: 4:${String(46-moveNo%40).padStart(2,"0")}`])+
+        `<div class="controls"><select id="chMode"><option>AI</option><option>Human</option></select><select id="chDiff"><option>Easy</option><option>Hard</option></select><button id="chUndo">Undo</button><button id="chNew">Restart</button></div><div class="board-wrap"><div class="wood"><div class="chess-board">${Array.from({length:64},(_,i)=>{let r=Math.floor(i/8),c=i%8,v=state.b[i],cls=(r+c)%2?"dark":"light",leg=state.sel!=null&&this.moves(state.sel).includes(i); return `<button class="sq ${cls} ${state.sel===i?"sel":""} ${leg?"legal":""}" data-i="${i}">${this.sym(v)}</button>`}).join("")}</div></div></div>`;
+        controls(`<div class="dossier"><h3>CLONE INTELLIGENCE DOSSIER</h3>${meter("MATERIAL BALANCE", pct(50+mat*4), mat>0?"+YOU":mat<0?"+CLONE":"EVEN")}<p class="sub">OPENING DETECTED: Sicilian Defense (seen in 34% of your games)</p><h4>PIECE PREFERENCE</h4>${miniBars([["Pawn",71,"#00ff9d"],["Knight",56,"#7f77dd"],["Bishop",38,"#7f77dd"],["Rook",44,"#00ff9d"],["Queen",62,"#ff6b35"]])}<h4>MOVE NOTATION</h4>${terminal((state.history||[]).slice(0,8).map((x,i)=>`${i+1}. ${x}`).concat([`CLONE DEVIATION: move ${moveNo} deviates from historical preference (68%)`]))}<span class="badge-warn">You favor the kingside. Clone has learned this.</span></div>`);
+        $("#chMode").value=state.mode;$("#chMode").onchange=e=>state.mode=e.target.value;$("#chDiff").value=state.diff;$("#chDiff").onchange=e=>state.diff=e.target.value;$("#chUndo").onclick=()=>{let s=state.stack.pop();if(s){state.b=s.b;state.p=s.p;state.sel=null;this.render();}};$("#chNew").onclick=()=>this.init();
+        document.querySelectorAll(".sq").forEach(b=>b.onclick=()=>this.click(+b.dataset.i)); score([["White",state.b.filter(x=>x&&x===x.toUpperCase()).length],["Black",state.b.filter(x=>x&&x===x.toLowerCase()).length],["Turn",state.p==="w"?"White":"Black"]]);
+      },
+      sym(v){return {K:"♔",Q:"♕",R:"♖",B:"♗",N:"♘",P:"♙",k:"♚",q:"♛",r:"♜",b:"♝",n:"♞",p:"♟"}[v]||"";},
+      material(){ const val={p:1,n:3,b:3,r:5,q:9,k:0}; return state.b.reduce((s,v)=>s+(v?(v===v.toUpperCase()?1:-1)*(val[v.toLowerCase()]||0):0),0); },
+      color(v){return !v?0:v===v.toUpperCase()?"w":"b";}, rc(i){return[Math.floor(i/8),i%8]}, id(r,c){return r>=0&&r<8&&c>=0&&c<8?r*8+c:-1},
+      moves(i){let v=state.b[i]; if(!v||this.color(v)!==state.p)return[]; let [r,c]=this.rc(i), out=[], me=this.color(v), add=(R,C)=>{let j=this.id(R,C); if(j>=0&&this.color(state.b[j])!==me)out.push(j); return j>=0&&!state.b[j];}; let lower=v.toLowerCase();
+        if(lower==="p"){let d=me==="w"?-1:1,start=me==="w"?6:1;if(!state.b[this.id(r+d,c)]){out.push(this.id(r+d,c)); if(r===start&&!state.b[this.id(r+2*d,c)])out.push(this.id(r+2*d,c));} for(const dc of[-1,1]){let j=this.id(r+d,c+dc);if(j>=0&&state.b[j]&&this.color(state.b[j])!==me)out.push(j);}}
+        if(lower==="n")for(const [a,b]of[[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]])add(r+a,c+b);
+        if("brq".includes(lower)){let dirs=[]; if("bq".includes(lower))dirs.push([1,1],[1,-1],[-1,1],[-1,-1]); if("rq".includes(lower))dirs.push([1,0],[-1,0],[0,1],[0,-1]); for(const[dR,dC]of dirs){let R=r+dR,C=c+dC;while(add(R,C)){R+=dR;C+=dC;}}}
+        if(lower==="k")for(let R=r-1;R<=r+1;R++)for(let C=c-1;C<=c+1;C++)if(R!==r||C!==c)add(R,C);
+        return out.filter(x=>x>=0);
+      },
+      click(i){ if(state.sel==null){ if(this.moves(i).length){state.sel=i;this.render();} return; } if(this.moves(state.sel).includes(i)){state.stack.push({b:state.b.slice(),p:state.p}); let from=state.sel, v=state.b[state.sel]; state.b[state.sel]=""; let [r]=this.rc(i); if(v==="P"&&r===0)v="Q"; if(v==="p"&&r===7)v="q"; state.b[i]=v; state.history.unshift(`${this.coord(from)}-${this.coord(i)}`); state.p=state.p==="w"?"b":"w"; state.sel=null; beep(300,.05); this.render(); if(state.mode==="AI"&&state.p==="b")aiDelay(()=>this.ai()); } else { state.sel=null; this.render(); } },
+      coord(i){ return "abcdefgh"[i%8]+(8-Math.floor(i/8)); },
+      ai(){ let all=[]; for(let i=0;i<64;i++)this.moves(i).forEach(to=>all.push([i,to])); if(!all.length)return setBanner("CHECKMATE / STALEMATE"); const val={p:1,n:3,b:3,r:5,q:9,k:99}; let m=all[Math.floor(Math.random()*all.length)]; if(state.diff==="Hard")m=all.sort((a,b)=>(val[(state.b[b[1]]||"").toLowerCase()]||0)-(val[(state.b[a[1]]||"").toLowerCase()]||0))[0]; this.click(m[0]); this.click(m[1]); }
+    };
+
+    load("RPS+");
+  </script>
+</body>
+</html>

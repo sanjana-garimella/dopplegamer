@@ -1,0 +1,88 @@
+# Serving engine configurations
+# =============================
+
+serving_engines:
+  baseline:
+    name: "HuggingFace Baseline"
+    engine_class: "HFBaselineEngine"
+    model_name: "distilgpt2"
+    device: "auto"
+    dtype: "auto"
+    max_batch_size: 32
+    timeout_seconds: 30
+    
+  vllm:
+    name: "vLLM with PagedAttention"
+    engine_class: "VLLMEngine"
+    model_name: "meta-llama/Llama-3.2-1B"
+    dtype: "auto"
+    gpu_memory_utilization: 0.85
+    max_model_len: 4096
+    max_batch_size: 256
+    enable_prefix_caching: true
+    timeout_seconds: 30
+
+  preble:
+    name: "Preble (Shared Prefix)"
+    engine_class: "PrebleEngine"
+    model_name: "meta-llama/Llama-3.2-1B"
+    device: "cuda"
+    dtype: "float16"
+    prefix_cache: true
+    max_batch_size: 64
+    timeout_seconds: 30
+
+  infercept:
+    name: "InferCept (Augmented LLM)"
+    engine_class: "InferCeptEngine"
+    model_name: "meta-llama/Llama-3.2-1B"
+    device: "cuda"
+    dtype: "float16"
+    enable_tool_interrupt: true
+    tool_cache: true
+    max_batch_size: 64
+    timeout_seconds: 30
+
+# Quantization configurations
+quantization:
+  fp32:
+    name: "Full Precision (FP32)"
+    precision: "fp32"
+    memory_factor: 4.0
+    latency_factor: 1.0
+    
+  fp16:
+    name: "Half Precision (FP16)"
+    precision: "fp16"
+    memory_factor: 2.0
+    latency_factor: 1.2
+    
+  int8:
+    name: "8-bit Integer"
+    precision: "int8"
+    memory_factor: 1.0
+    latency_factor: 1.5
+    
+  int4:
+    name: "4-bit Integer"
+    precision: "int4"
+    memory_factor: 0.5
+    latency_factor: 2.0
+
+# Inference parameters
+inference:
+  max_new_tokens: 8
+  temperature: 0.0  # greedy
+  top_p: 1.0
+  top_k: null
+  num_beams: 1
+  repetition_penalty: 1.0
+
+# Benchmark settings
+benchmark:
+  warmup_rounds: 5
+  benchmark_rounds: 100
+  concurrent_requests: 1
+  profile_memory: true
+  profile_latency: true
+  collect_kv_cache_stats: true

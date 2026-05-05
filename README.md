@@ -6,17 +6,38 @@
 
 > **LLM inference benchmarking with agentic game workloads.**
 
-Existing LLM benchmarks use single-turn, stateless prompts — but agentic systems generate multi-turn conversations where context grows with every step. Doppelgamer uses **game environments as workload generators**: games produce multi-turn interactions with measurable outcomes, making inference pressure comparable across serving engines.
+Existing LLM benchmarks use single-turn, stateless prompts, but agentic systems generate multi-turn conversations where context grows with every step. Doppelgamer uses **chess game environments as workload generators**: games produce multi-turn interactions with measurable outcomes, making inference pressure comparable across serving engines.
 
 ---
 
 ## What This Project Does
 
-- Runs **4 inference engines** (HuggingFace, vLLM, Preble, Infercept) against the same workloads and records identical metrics for each — engines swap with a single CLI flag
-- Uses **Gymnasium-style game environments** as the workload source, generating seeded multi-turn LLM conversations with discrete actions and per-turn rewards
-- Profiles **KV-cache memory growth** across conversation turns — the dominant GPU cost in long-context LLM serving
-- Runs fully on **CPU via deterministic mock engines** — no GPU required for local development or CI
-- Persists all results to **SQLite** and surfaces them through a FastAPI backend and Streamlit dashboard
+- Runs **4 inference engines** (HuggingFace, vLLM, Preble, Infercept) against the same workloads and records identical metrics for each. Engines swap with a single CLI flag.
+- Uses **Gymnasium-style chess environments** as the workload source, generating seeded multi-turn LLM conversations with discrete actions and per-turn rewards
+- Trains and evaluates **multiple agent policies** including RL (via stable-baselines3), SFT (via PEFT fine-tuning), LSTM-based impostors, and logistic regression baselines
+- Uses **ChromaDB** for agent memory and embedding retrieval across conversation turns
+- Profiles **KV-cache memory growth** across conversation turns, the dominant GPU cost in long-context LLM serving
+- Runs fully on **CPU via deterministic mock engines**. No GPU required for local development or CI.
+- Persists all results to **SQLite** and surfaces them through a FastAPI backend and Streamlit/Plotly dashboard
+
+---
+
+## Tech Stack
+
+| Layer | Libraries |
+|-------|-----------|
+| Inference engines | Hugging Face `transformers`, vLLM |
+| Fine-tuning | `peft` (Parameter Efficient Fine-Tuning) |
+| RL agents | `stable-baselines3` |
+| Deep learning | PyTorch |
+| Game environment | `gymnasium`, `python-chess` |
+| Vector storage | `chromadb` |
+| ML baselines | `scikit-learn` |
+| Data | `pandas`, `numpy`, `datasets`, SQLite |
+| API | FastAPI, Pydantic, uvicorn |
+| Dashboard | Streamlit, Plotly |
+| Testing | pytest |
+| Config | PyYAML |
 
 ---
 
@@ -37,9 +58,9 @@ Existing LLM benchmarks use single-turn, stateless prompts — but agentic syste
 
 Games make good LLM workloads for three reasons:
 
-1. **Seeded environments** — the same seed produces the same sequence of prompts, so benchmark runs are byte-for-byte reproducible
-2. **Natural context growth** — each turn appends observations and actions to the conversation, applying realistic KV-cache pressure
-3. **Outcome signal** — win/loss, score, and per-turn reward give a second axis beyond latency for evaluating agent policies
+1. **Seeded environments** -- the same seed produces the same sequence of prompts, so benchmark runs are reproducible
+2. **Natural context growth** -- each turn appends observations and actions to the conversation, applying realistic KV-cache pressure
+3. **Outcome signal** -- win/loss, score, and per-turn reward give a second axis beyond latency for evaluating agent policies
 
 ---
 
@@ -47,14 +68,14 @@ Games make good LLM workloads for three reasons:
 
 Mock benchmark run, 4 engines, 20 rounds:
 
-| Engine     | TTFT (ms) ↓ | TPOT (ms) ↓ | Throughput (req/s) ↑ | KV Cache (MB) ↓ |
+| Engine     | TTFT (ms) | TPOT (ms) | Throughput (req/s) | KV Cache (MB) |
 |------------|------------|------------|---------------------|----------------|
 | baseline   | 142        | 38         | 4.2                 | 512            |
 | vllm       | 61         | 22         | 9.8                 | 480            |
 | preble     | 58         | 21         | 10.3                | 310            |
 | infercept  | 55         | 20         | 10.7                | 298            |
 
-> Preble and Infercept use ~40% less KV-cache memory than baseline at the same output quality — the gap widens as conversation length increases.
+> Preble and Infercept use ~40% less KV-cache memory than baseline at the same output quality. The gap widens as conversation length increases.
 
 ---
 
@@ -62,7 +83,7 @@ Mock benchmark run, 4 engines, 20 rounds:
 
 - **Python 3.10+**
 - **pip**
-- **CUDA GPU + vLLM** *(optional)* — required for `vllm`, `preble`, and `infercept` engines; `--model mock` runs everything locally on CPU
+- **CUDA GPU + vLLM** *(optional)* -- required for `vllm`, `preble`, and `infercept` engines. `--model mock` runs everything locally on CPU.
 
 ---
 
@@ -115,7 +136,7 @@ Benchmark orchestration (evaluation/runner.py)
         |
         +--> Workload generators (agents/, environments/)
         |     - Agent policies (heuristic, SFT, RL, agentic LLM, impostor)
-        |     - Gymnasium-style game environments
+        |     - Gymnasium chess environments
         |     - Turn-level prompts / actions / rewards
         |
         +--> Profilers (analysis/)
@@ -132,7 +153,7 @@ Dashboard / notebooks / reports
 ```
 
 - **FastAPI** (`main.py`): `/benchmark` endpoint, Pydantic validation, run-size bounds, safe DB path enforcement
-- **Streamlit UI** (`streamlit_app.py`, `dashboard/`): inference benchmark comparisons, game workload traces, player profiles, evaluation outputs
+- **Streamlit + Plotly** (`streamlit_app.py`, `dashboard/`): inference benchmark comparisons, game workload traces, player profiles, evaluation outputs
 - **Agent framework** (`agents/`): heuristic, profile-aware, SFT, RL/BC-RL, agentic LLM, checkpoint-backed, and impostor policies
 - **Environments** (`environments/`): Gymnasium-compatible `reset`/`step` with discrete actions and turn-level observations
 
@@ -150,7 +171,7 @@ Dashboard / notebooks / reports
 | `infercept` | Split prefill and resumed-decode path |
 | `mock`      | Deterministic local engine for CI and local runs |
 
-Every engine emits the same normalized metric schema (`serving/base.py`). Engines swap by name from CLI or API — no code changes required.
+Every engine emits the same normalized metric schema (`serving/base.py`). Engines swap by name from CLI or API with no code changes.
 
 ### Profiling Modules (`analysis/`)
 

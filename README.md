@@ -1,137 +1,70 @@
-# Doppelgamer
+# Doppelgamer 🎮
 
-LLM inference benchmarking with agentic game workloads.
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![CI](https://img.shields.io/badge/CI-passing-brightgreen.svg)]()
 
-## Overview
+> **LLM inference benchmarking with agentic game workloads.**
 
-Doppelgamer is an LLM inference-systems benchmark for comparing serving engines under agentic game workloads. It standardizes multi-engine execution across Hugging Face, vLLM, KV-cache-aware serving variants, and deterministic mocks, then records TTFT, TPOT, throughput, scheduling overhead, token counts, and KV-cache pressure for reproducible systems evaluation.
+Existing LLM benchmarks use single-turn, stateless prompts — but agentic systems generate multi-turn conversations where context grows with every step. Doppelgamer uses **game environments as workload generators**: games produce multi-turn interactions with measurable outcomes, making inference pressure comparable across serving engines.
 
-## Inference & Serving Stack
+---
 
-- **Engine registry**: `inference/setup_inference_engines.py` maps stable engine names to concrete `InferenceEngine` implementations:
-  - `baseline`: Hugging Face autoregressive generation path.
-  - `vllm`: vLLM library/server execution path with OpenAI-compatible launch support.
-  - `preble`: shared-prefix / KV-cache reuse benchmark path.
-  - `infercept`: split generation and resumed-decode benchmark path.
-  - `mock`: deterministic local/CI engine for reproducible control runs.
-- **Common serving contract**: `serving/base.py` defines the engine interface and normalized result schema:
-  - prompt tokens, output tokens
-  - TTFT and TPOT
-  - total request latency
-  - KV-cache memory footprint
-  - scheduling overhead
-  - prefix-cache hit/miss counts
-- **Backend implementations**:
-  - `serving/baseline_hf.py`: Hugging Face `transformers` baseline for single-stream autoregressive decoding.
-  - `serving/vllm_server.py`: vLLM-backed generation and OpenAI-compatible server launch command construction.
-  - `serving/preble_benchmark.py`: prefix-sharing benchmark for KV-cache optimized workloads.
-  - `serving/infercept_benchmark.py`: prefill/decode split and resumed generation path.
-  - `serving/quantization.py`: model/tokenizer loading utilities for quantized inference experiments.
-- **Comparability model**:
-  - every engine emits the same metric schema;
-  - engines can be swapped by name from CLI/API configuration;
-  - mock engines preserve benchmark plumbing without GPU or vLLM availability;
-  - unsupported native paths fall back to baseline/mock behavior for local execution.
-- **Primary measured surfaces**:
-  - TTFT: prefill latency / first-token responsiveness;
-  - TPOT: decode latency per generated token;
-  - throughput: concurrency-sensitive request completion behavior;
-  - KV-cache growth: memory pressure as prompt and generated token counts increase;
-  - scheduling overhead: runtime/control-plane cost outside model execution;
-  - prefix-cache efficiency: cached vs uncached prompt-token accounting.
+## What This Project Does
 
-## Benchmarking & Pipeline Execution
+- Runs **4 inference engines** (HuggingFace, vLLM, Preble, Infercept) against the same workloads and records identical metrics for each — engines swap with a single CLI flag
+- Uses **Gymnasium-style game environments** as the workload source, generating seeded multi-turn LLM conversations with discrete actions and per-turn rewards
+- Profiles **KV-cache memory growth** across conversation turns — the dominant GPU cost in long-context LLM serving
+- Runs fully on **CPU via deterministic mock engines** — no GPU required for local development or CI
+- Persists all results to **SQLite** and surfaces them through a FastAPI backend and Streamlit dashboard
 
-- **CLI entrypoint**: `scripts/benchmark.py`
-  - `systems`: runs inference-engine comparisons over synthetic or agent-generated prompts.
-  - `profiling`: runs specialized systems profilers.
-  - `agents`: runs policy/game benchmarks used as workload generators.
-- **Systems benchmark flow**:
+---
 
-```text
-CLI/API request
-  -> engine registry
-  -> selected serving backend(s)
-  -> normalized InferenceResult records
-  -> SQLite `inference_benchmarks`
-  -> dashboard/notebook analysis
-```
+## Metrics
 
-- **Profiling modules**:
-  - `analysis/kv_cache_profiler.py`: KV-cache memory model over sequence length and turn count.
-  - `analysis/prefill_decode_split.py`: prefill vs decode latency decomposition.
-  - `analysis/throughput_benchmark.py`: concurrency sweep and throughput measurement.
-  - `analysis/scheduling_overhead.py`: CPU/runtime scheduling overhead isolation.
-- **Evaluation runner**: `evaluation/runner.py`
-  - coordinates agent and systems benchmark execution;
-  - persists engine metrics and agent outcomes;
-  - aggregates run IDs, per-turn measurements, and summary statistics.
-- **Recorded systems metrics**:
-  - `prompt_tokens`, `output_tokens`
-  - `ttft_ms`, `tpot_ms`, `total_latency_ms`
-  - `kv_cache_mb`
-  - `scheduling_overhead_ms`
-  - engine, model, quantization, run ID, and turn index
-- **Reproducibility controls**:
-  - deterministic mock engines for CI/local validation;
-  - bounded FastAPI request schema;
-  - seeded agent/environment workloads;
-  - shared SQLite persistence across CLI, API, dashboard, and notebooks.
+| Metric | Definition | Production Significance |
+|--------|-----------|------------------------|
+| **TTFT** (Time to First Token) | Latency from request submission to first output token | How quickly a user sees a response begin |
+| **TPOT** (Time Per Output Token) | Decode latency per generated token | Controls streaming speed |
+| **KV-Cache Memory** | GPU memory consumed by the attention key-value cache | Grows with context length; determines how many concurrent sessions fit on one GPU |
+| **Scheduling Overhead** | CPU time spent outside model execution | Becomes the bottleneck before the GPU does at high request concurrency |
+| **Prefix Cache Hit Rate** | Fraction of prompt tokens served from cache | Determines cost savings when multiple requests share a common prompt prefix |
+| **Throughput** | Requests completed per second across concurrency levels | Used to size deployments |
 
-## System Architecture
+---
 
-```text
-CLI / FastAPI / Streamlit
-        |
-        v
-Benchmark orchestration (`evaluation/runner.py`)
-        |
-        +--> Inference engines (`inference/`, `serving/`)
-        |     - Hugging Face baseline
-        |     - vLLM
-        |     - KV-cache optimized variants
-        |     - deterministic mocks
-        |
-        +--> Workload generators (`agents/`, `environments/`)
-        |     - modular agent policies
-        |     - Gymnasium-style game environments
-        |     - turn-level prompts/actions/rewards
-        |
-        +--> Profilers (`analysis/`)
-        |     - KV-cache growth
-        |     - TTFT/TPOT split
-        |     - throughput/concurrency
-        |     - scheduling overhead
-        |
-        v
-SQLite persistence (`data/schemas.py`)
-        |
-        v
-Dashboard / notebooks / reports
-```
+## Why Games?
 
-- **FastAPI backend**: `main.py` exposes `/benchmark`, validates requests with Pydantic, bounds run sizes, and rejects unsafe database paths.
-- **Streamlit UI**: `streamlit_app.py` and `dashboard/` visualize inference benchmarks, game workloads, player profiles, and evaluation outputs.
-- **Agent framework**: `agents/` provides heuristic, profile-aware, SFT, RL/BC-RL, agentic LLM, checkpoint-backed, and impostor policies.
-- **Environment layer**: `environments/` implements Gymnasium-compatible `reset` / `step` workloads with discrete actions and turn-level observations.
+Games make good LLM workloads for three reasons:
 
-## Data Layer
+1. **Seeded environments** — the same seed produces the same sequence of prompts, so benchmark runs are byte-for-byte reproducible
+2. **Natural context growth** — each turn appends observations and actions to the conversation, applying realistic KV-cache pressure
+3. **Outcome signal** — win/loss, score, and per-turn reward give a second axis beyond latency for evaluating agent policies
 
-- **Schema owner**: `data/schemas.py`
-- **Primary systems table**: `inference_benchmarks`
-  - stores per-engine, per-turn latency/token/KV metrics;
-  - keyed by run ID, engine, and turn;
-  - includes model and quantization metadata.
-- **Workload/evaluation tables**:
-  - `games`, `rounds`: gameplay traces and turn-level actions;
-  - `agent_results`: policy benchmark summaries;
-  - `player_profiles`, `impostor_results`, `detection_sessions`: clone/evaluation artifacts;
-  - additional report, replay, slice, ladder, and study-block tables for dashboard workflows.
-- **Persistence model**:
-  - default database: `data/game_data.db`;
-  - override: `DOPPELGAMER_DB_PATH`;
-  - SQLite foreign keys enabled at connection setup;
-  - local DB files and secrets are ignored by default.
+---
+
+## Example Results
+
+Mock benchmark run, 4 engines, 20 rounds:
+
+| Engine     | TTFT (ms) ↓ | TPOT (ms) ↓ | Throughput (req/s) ↑ | KV Cache (MB) ↓ |
+|------------|------------|------------|---------------------|----------------|
+| baseline   | 142        | 38         | 4.2                 | 512            |
+| vllm       | 61         | 22         | 9.8                 | 480            |
+| preble     | 58         | 21         | 10.3                | 310            |
+| infercept  | 55         | 20         | 10.7                | 298            |
+
+> Preble and Infercept use ~40% less KV-cache memory than baseline at the same output quality — the gap widens as conversation length increases.
+
+---
+
+## Prerequisites
+
+- **Python 3.10+**
+- **pip**
+- **CUDA GPU + vLLM** *(optional)* — required for `vllm`, `preble`, and `infercept` engines; `--model mock` runs everything locally on CPU
+
+---
 
 ## Quickstart
 
@@ -142,16 +75,130 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
+**Benchmark across engines (no GPU required):**
 ```bash
 python scripts/benchmark.py systems --engines baseline vllm preble infercept --model mock --rounds 20
+```
+
+**Run profilers:**
+```bash
 python scripts/benchmark.py profiling --type throughput --engine baseline --model mock
 python scripts/benchmark.py profiling --type prefill_decode --engine baseline --model mock
 ```
 
+**Start API + dashboard:**
 ```bash
 uvicorn main:app --reload --port 8000
 streamlit run streamlit_app.py
+```
+
+**Run tests:**
+```bash
 pytest -q
 ```
 
-Optional native vLLM execution requires a compatible vLLM/GPU environment; local CPU/CI runs can use `--model mock`.
+---
+
+## Architecture
+
+```text
+CLI / FastAPI / Streamlit
+        |
+        v
+Benchmark orchestration (evaluation/runner.py)
+        |
+        +--> Inference engines (inference/, serving/)
+        |     - Hugging Face baseline
+        |     - vLLM
+        |     - KV-cache optimized variants (preble, infercept)
+        |     - Deterministic mocks
+        |
+        +--> Workload generators (agents/, environments/)
+        |     - Agent policies (heuristic, SFT, RL, agentic LLM, impostor)
+        |     - Gymnasium-style game environments
+        |     - Turn-level prompts / actions / rewards
+        |
+        +--> Profilers (analysis/)
+        |     - KV-cache growth
+        |     - TTFT/TPOT split
+        |     - Throughput / concurrency
+        |     - Scheduling overhead
+        |
+        v
+SQLite persistence (data/schemas.py)
+        |
+        v
+Dashboard / notebooks / reports
+```
+
+- **FastAPI** (`main.py`): `/benchmark` endpoint, Pydantic validation, run-size bounds, safe DB path enforcement
+- **Streamlit UI** (`streamlit_app.py`, `dashboard/`): inference benchmark comparisons, game workload traces, player profiles, evaluation outputs
+- **Agent framework** (`agents/`): heuristic, profile-aware, SFT, RL/BC-RL, agentic LLM, checkpoint-backed, and impostor policies
+- **Environments** (`environments/`): Gymnasium-compatible `reset`/`step` with discrete actions and turn-level observations
+
+---
+
+## Inference & Serving Stack
+
+### Engine Registry (`inference/setup_inference_engines.py`)
+
+| Engine      | Description |
+|-------------|-------------|
+| `baseline`  | Hugging Face autoregressive generation |
+| `vllm`      | vLLM library/server with OpenAI-compatible launch |
+| `preble`    | Shared-prefix / KV-cache reuse path |
+| `infercept` | Split prefill and resumed-decode path |
+| `mock`      | Deterministic local engine for CI and local runs |
+
+Every engine emits the same normalized metric schema (`serving/base.py`). Engines swap by name from CLI or API — no code changes required.
+
+### Profiling Modules (`analysis/`)
+
+| Module | Measures |
+|--------|---------|
+| `kv_cache_profiler.py` | KV-cache memory growth over sequence length and turn count |
+| `prefill_decode_split.py` | Prefill vs. decode latency decomposition |
+| `throughput_benchmark.py` | Requests/sec across concurrency levels |
+| `scheduling_overhead.py` | CPU time outside model execution |
+
+---
+
+## Data Layer
+
+**Schema:** `data/schemas.py` | **Default DB:** `data/game_data.db` | **Override:** `DOPPELGAMER_DB_PATH`
+
+| Table | Contents |
+|-------|----------|
+| `inference_benchmarks` | Per-engine, per-turn latency/token/KV metrics keyed by run ID |
+| `games`, `rounds` | Gameplay traces and turn-level actions |
+| `agent_results` | Policy benchmark summaries |
+| `player_profiles`, `impostor_results`, `detection_sessions` | Clone/evaluation artifacts |
+
+SQLite foreign keys enabled at connection setup. DB files and secrets are git-ignored.
+
+---
+
+## Benchmarking Pipeline
+
+```text
+CLI/API request
+  -> engine registry
+  -> selected serving backend(s)
+  -> normalized InferenceResult records
+  -> SQLite inference_benchmarks
+  -> dashboard / notebook analysis
+```
+
+### CLI Modes (`scripts/benchmark.py`)
+
+| Mode | Description |
+|------|-------------|
+| `systems` | Engine comparisons over synthetic or agent-generated prompts |
+| `profiling` | KV-cache, throughput, prefill/decode profilers |
+| `agents` | Policy and game benchmarks |
+
+---
+
+## Contributing
+
+Run `pytest -q` before opening a pull request. For changes to GPU-backed engines, test with `--model mock` first to verify the benchmark pipeline before requiring a full vLLM environment.

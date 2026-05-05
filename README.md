@@ -1,5 +1,182 @@
 # Doppelgamer
 
+Doppelgamer is a platform for behavioral game-agent imitation. It records human gameplay, trains player-specific clone models, and evaluates whether clones are distinguishable from the source player in controlled matches.
+
+## Overview
+
+The repository provides:
+- gameplay data collection and storage
+- clone-model training and evaluation
+- interactive dashboard workflows
+- API and CLI benchmarking interfaces
+
+## Objectives
+
+The project is organized around three questions:
+1. Can a model reproduce player-specific behavior over time?
+2. Can players distinguish their clone from other opponents?
+3. Which behavioral signals are associated with fidelity and detection outcomes?
+
+## Components
+
+- `dashboard/`: Streamlit application UI (`streamlit_app.py` entrypoint)
+- `main.py`: FastAPI service (`/` and `/benchmark`)
+- `agents/`: agent implementations (heuristic, learned, profile-aware, clone)
+- `environments/`: game environments with a common interface
+- `evaluation/`: benchmark runners and metrics
+- `analysis/`: profiling and systems analysis scripts
+- `data/`: SQLite schemas and data utilities
+- `scripts/`: command-line workflows
+
+## Repository Structure
+
+```text
+doppelgamer/
+├── main.py
+├── streamlit_app.py
+├── dashboard/
+├── agents/
+├── environments/
+├── evaluation/
+├── analysis/
+├── data/
+├── scripts/
+├── serving/
+├── inference/
+├── configs/
+└── tests/
+```
+
+## Requirements
+
+- Python 3.12+
+- pip
+
+Install dependencies from `requirements.txt`.
+
+## Setup
+
+```bash
+git clone https://github.com/sanjana-garimella/doppelgamer.git
+cd doppelgamer
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+```
+
+## Run
+
+Dashboard:
+
+```bash
+streamlit run streamlit_app.py
+```
+
+API:
+
+```bash
+uvicorn main:app --reload --port 8000
+```
+
+## Basic Workflow
+
+1. Open `http://localhost:8501`.
+2. Create or select a player profile.
+3. Play rounds to generate data.
+4. Train a clone model from saved sessions.
+5. Evaluate clone behavior in live and analysis views.
+
+## CLI Usage
+
+Agent benchmarks:
+
+```bash
+python scripts/benchmark.py agents --rounds 100 --seeds 3 --games RPS+
+```
+
+Inference-system benchmarks:
+
+```bash
+python scripts/benchmark.py systems --engines baseline vllm preble infercept --model mock --rounds 20
+```
+
+Profiling:
+
+```bash
+python scripts/benchmark.py profiling --type scheduling --engine baseline --model mock
+python scripts/benchmark.py profiling --type throughput --engine baseline --model mock
+python scripts/benchmark.py profiling --type prefill_decode --engine baseline --model mock
+```
+
+## API Usage
+
+Health check:
+
+```bash
+curl http://localhost:8000/
+```
+
+Benchmark request:
+
+```bash
+curl -X POST http://localhost:8000/benchmark \
+  -H "Content-Type: application/json" \
+  -d '{
+    "rounds": 100,
+    "engines": ["baseline", "vllm", "preble", "infercept"],
+    "agents": ["sft", "rl", "bcrl", "agentic"],
+    "db_path": "data/game_data.db"
+  }'
+```
+
+## Data and Persistence
+
+- Default database path: `data/game_data.db`
+- Environment override: `DOPPELGAMER_DB_PATH`
+- For containers, mount persistent storage for database files
+
+## Testing
+
+```bash
+pytest -q
+```
+
+## Deployment
+
+Included files:
+- `Dockerfile`
+- `Procfile`
+- `.streamlit/config.toml`
+- `.env.example`
+
+Container example:
+
+```bash
+docker build -t doppelgamer .
+docker run -p 8501:8501 -v $(pwd)/data:/data doppelgamer
+```
+
+For Streamlit Community Cloud, use `streamlit_app.py` as entrypoint.
+
+## Security Notes
+
+- Keep secrets in environment variables or local secret files.
+- Do not commit `.env` or `.streamlit/secrets.toml`.
+- Keep local database files out of version control unless intentionally shared.
+
+## Contributing
+
+1. Create a branch.
+2. Add or update tests as needed.
+3. Run `pytest -q`.
+4. Open a pull request with a technical summary.
+
+## License
+
+MIT License.
+# Doppelgamer
+
 Doppelgamer is a research and engineering platform for behavioral game-agent imitation.  
 It records human gameplay, trains player-specific clone models, and evaluates whether clones are distinguishable from the source player in controlled live matches.
 

@@ -1,5 +1,5 @@
 [project]
-name = "agentbench"
+name = "dopplegamer"
 version = "0.1.0"
 description = "LLM Inference Optimization Benchmark for Real-Time Agent Decision Systems"
 requires-python = ">=3.12"

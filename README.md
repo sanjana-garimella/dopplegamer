@@ -1,18 +1,19 @@
-# Doppelgamer 🎮
+# Doppelgamer
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 > **LLM inference benchmarking with agentic game workloads.**
 
-Existing LLM benchmarks use single-turn, stateless prompts, but agentic systems generate multi-turn conversations where context grows with every step. Doppelgamer uses **chess game environments as workload generators**: games produce multi-turn interactions with measurable outcomes, making inference pressure comparable across serving engines.
+Existing LLM benchmarks use single-turn, stateless prompts, but agentic systems generate multi-turn conversations where context grows with every step. Doppelgamer uses **multi-game environments as workload generators**: games produce turn-by-turn interactions with measurable outcomes, making inference pressure comparable across serving engines.
 
 ---
 
 ## What This Project Does
 
 - Runs **4 inference engines** (HuggingFace, vLLM, Preble, Infercept) against the same workloads and records identical metrics for each. Engines swap with a single CLI flag.
-- Uses **Gymnasium-style chess environments** as the workload source, generating seeded multi-turn LLM conversations with discrete actions and per-turn rewards
+- Uses **Gymnasium-style game environments** as the workload source, generating seeded multi-turn LLM conversations with discrete actions and per-turn rewards
+- Supports **RPS+, Tic-Tac-Toe, Connect Four, Chess, Othello, Checkers, Gomoku, and Nim** as the main playable/benchmarked games, with War as a research prototype
 - Trains and evaluates **multiple agent policies** including RL (via stable-baselines3), SFT (via PEFT fine-tuning), LSTM-based impostors, and logistic regression baselines
 - Uses **ChromaDB** for agent memory and embedding retrieval across conversation turns
 - Profiles **KV-cache memory growth** across conversation turns, the dominant GPU cost in long-context LLM serving
@@ -29,7 +30,7 @@ Existing LLM benchmarks use single-turn, stateless prompts, but agentic systems 
 | Fine-tuning | `peft` (Parameter Efficient Fine-Tuning) |
 | RL agents | `stable-baselines3` |
 | Deep learning | PyTorch |
-| Game environment | `gymnasium`, `python-chess` |
+| Game environments | `gymnasium`, `python-chess` |
 | Vector storage | `chromadb` |
 | ML baselines | `scikit-learn` |
 | Data | `pandas`, `numpy`, `datasets`, SQLite |
@@ -50,6 +51,23 @@ Existing LLM benchmarks use single-turn, stateless prompts, but agentic systems 
 | **Scheduling Overhead** | CPU time spent outside model execution | Becomes the bottleneck before the GPU does at high request concurrency |
 | **Prefix Cache Hit Rate** | Fraction of prompt tokens served from cache | Determines cost savings when multiple requests share a common prompt prefix |
 | **Throughput** | Requests completed per second across concurrency levels | Used to size deployments |
+
+---
+
+## Main Games
+
+Doppelgamer's primary playable and benchmarked game workloads are:
+
+- **RPS+**: rock-paper-scissors with Lizard, Power, Recharge, and energy management.
+- **Tic-Tac-Toe**: compact 3x3 strategic play for fast policy checks.
+- **Connect Four**: 7-column gravity board with horizontal, vertical, and diagonal wins.
+- **Chess**: python-chess-backed legal move generation, checkmate, stalemate, and draw handling.
+- **Othello**: 8x8 Reversi territory control with pass turns and disc-flip rules.
+- **Checkers**: American checkers with forced captures, kings, and multi-jump sequences.
+- **Gomoku**: five-in-a-row threat building on a configurable board.
+- **Nim**: compact pile-taking math game for turn-level strategy evaluation.
+
+`War` is also available as a prototype/research sandbox workload. Additional lightweight future-game environments exist for experiments, but they are not part of the main live arena catalog.
 
 ---
 
@@ -80,7 +98,7 @@ Mock benchmark run, 4 engines, 20 rounds:
 
 ## Prerequisites
 
-- **Python 3.10+**
+- **Python 3.12+**
 - **pip**
 - **CUDA GPU + vLLM** *(optional)* -- required for `vllm`, `preble`, and `infercept` engines. `--model mock` runs everything locally on CPU.
 
@@ -135,7 +153,7 @@ Benchmark orchestration (evaluation/runner.py)
         |
         +--> Workload generators (agents/, environments/)
         |     - Agent policies (heuristic, SFT, RL, agentic LLM, impostor)
-        |     - Gymnasium chess environments
+        |     - Gymnasium-style game environments
         |     - Turn-level prompts / actions / rewards
         |
         +--> Profilers (analysis/)
@@ -154,7 +172,7 @@ Dashboard / notebooks / reports
 - **FastAPI** (`main.py`): `/benchmark` endpoint, Pydantic validation, run-size bounds, safe DB path enforcement
 - **Streamlit + Plotly** (`streamlit_app.py`, `dashboard/`): inference benchmark comparisons, game workload traces, player profiles, evaluation outputs
 - **Agent framework** (`agents/`): heuristic, profile-aware, SFT, RL/BC-RL, agentic LLM, checkpoint-backed, and impostor policies
-- **Environments** (`environments/`): Gymnasium-compatible `reset`/`step` with discrete actions and turn-level observations
+- **Environments** (`environments/`): Gymnasium-compatible `reset`/`step` workloads for RPS+, Tic-Tac-Toe, Connect Four, Chess, Othello, Checkers, Gomoku, Nim, and research prototypes
 
 ---
 

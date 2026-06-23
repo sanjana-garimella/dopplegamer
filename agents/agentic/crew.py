@@ -59,7 +59,7 @@ class CrewAgent(Agent):
             "PAPER": Move.SCISSORS,
             "SCISSORS": Move.ROCK,
             "LIZARD": Move.ROCK,
-            "POWER": Move.RECHARGE,
+            "POWER": Move.POWER,
             "RECHARGE": Move.POWER,
         }
         move = counter.get(target, Move.ROCK)

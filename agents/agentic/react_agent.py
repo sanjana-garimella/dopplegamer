@@ -54,7 +54,7 @@ def fallback_llm(prompt: str) -> str:
     pred = m.group(1) if m else None
     counter = {
         "ROCK": "PAPER", "PAPER": "SCISSORS", "SCISSORS": "ROCK",
-        "LIZARD": "ROCK", "POWER": "RECHARGE", "RECHARGE": "POWER",
+        "LIZARD": "ROCK", "POWER": "POWER", "RECHARGE": "POWER",
     }
     move = counter.get(pred, "ROCK")
     return f"ACTION: {move}"

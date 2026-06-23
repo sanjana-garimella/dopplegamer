@@ -81,7 +81,7 @@ _COUNTER: dict[int, int] = {
     int(Move.PAPER):    int(Move.SCISSORS),
     int(Move.SCISSORS): int(Move.ROCK),
     int(Move.LIZARD):   int(Move.ROCK),
-    int(Move.POWER):    int(Move.RECHARGE),
+    int(Move.POWER):    int(Move.POWER),
     int(Move.RECHARGE): int(Move.POWER),
 }
 

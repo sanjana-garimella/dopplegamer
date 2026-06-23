@@ -236,7 +236,7 @@ def per_decision_bias_rates(
     counter_map = {
         int(Move.ROCK): int(Move.PAPER), int(Move.PAPER): int(Move.SCISSORS),
         int(Move.SCISSORS): int(Move.ROCK), int(Move.LIZARD): int(Move.ROCK),
-        int(Move.POWER): int(Move.RECHARGE), int(Move.RECHARGE): int(Move.POWER),
+        int(Move.POWER): int(Move.POWER), int(Move.RECHARGE): int(Move.POWER),
     }
 
     recency_hits = 0

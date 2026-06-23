@@ -6,6 +6,8 @@ from pathlib import Path
 
 import streamlit as st
 
+from dashboard.navigation import switch_page_compat
+
 
 STYLE_PATH = Path(__file__).with_name("style.css")
 
@@ -47,7 +49,7 @@ def render_sidebar_nav(current_page: str) -> None:
             )
         else:
             if st.sidebar.button(label, key=f"sidebar_nav_{label}", width='stretch'):
-                st.switch_page(page)
+                switch_page_compat(page)
 
 
 def style_plotly_figure(fig, *, height: int = 300):

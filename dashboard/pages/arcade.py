@@ -12,6 +12,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from dashboard.auth import require_user_profile
+from dashboard.navigation import switch_page_compat
 from dashboard.ui import configure_page
 
 
@@ -28,6 +29,6 @@ _legacy_embed_api = components.html
 
 try:
     st.session_state["live_arena_experience"] = "Play Arcade"
-    st.switch_page("pages/live_game.py")
+    switch_page_compat("pages/live_game.py")
 except Exception:
     pass

@@ -2,11 +2,9 @@
 
 ![Python](https://img.shields.io/badge/python-3.12+-blue) ![License](https://img.shields.io/badge/license-MIT-green)
 
-> LLM inference benchmarking with game-driven multi-turn workloads.
+> LLM inference benchmarking with game-driven, multi-turn workloads.
 
-Most LLM benchmarks are single-turn and stateless. Real agentic systems aren't context grows every step, and that's where serving engines diverge. Doppelgamer uses game environments to generate reproducible multi-turn conversations so you can compare inference engines under realistic pressure.
-
----
+Doppelgamer is a benchmarking setup for LLM inference engines. It uses games as the workload: the model plays through a game turn by turn, which creates a long, multi-turn conversation with a growing context. Each game is seeded, so the same run produces the same conversation, and the engines all report the same metrics for speed and memory.
 
 ## Contents
 
@@ -19,18 +17,14 @@ Most LLM benchmarks are single-turn and stateless. Real agentic systems aren't c
 - [Architecture](#architecture)
 - [Contributing](#contributing)
 
----
-
 ## What it does
 
-- Runs **4 inference engines** (HuggingFace, vLLM, Preble, Infercept) against identical workloads. Swap engines with one CLI flag.
-- Uses **Gymnasium-style game environments** as workload generators seeded, reproducible, multi-turn conversations with discrete actions and per-turn rewards.
-- Trains and evaluates **multiple agent policies**: RL (stable-baselines3), SFT (PEFT), LSTM impostors, and logistic regression baselines.
-- Profiles **KV-cache memory growth** across turns the dominant GPU cost in long-context serving.
-- Runs fully on CPU via deterministic mock engines. No GPU needed for local dev or CI.
-- Persists results to SQLite with a FastAPI + Streamlit dashboard.
-
----
+- Runs four inference engines (HuggingFace, vLLM, Preble, Infercept) on the same workloads. Switching between them is one CLI flag.
+- Treats each game as a workload generator. Give it a seed and you get back the same multi-turn conversation every time, with discrete moves and a reward per turn.
+- Trains and evaluates a few kinds of agents: RL (stable-baselines3), SFT (PEFT), LSTM impostors, and logistic regression baselines.
+- Tracks how the KV cache grows turn over turn, since that memory is usually what limits long-context serving.
+- Includes deterministic mock engines, so everything runs on a laptop with no GPU. CI uses the same path.
+- Saves results to SQLite and shows them through a FastAPI backend and a Streamlit dashboard.
 
 ## Games
 
@@ -41,13 +35,11 @@ Most LLM benchmarks are single-turn and stateless. Real agentic systems aren't c
 | Connect Four | 7-column gravity board |
 | Chess | Full legal move generation via python-chess |
 | Othello | 8x8 Reversi with pass turns and disc-flip rules |
-| Checkers | Forced captures, kings, multi-jump sequences |
+| Checkers | Forced captures, kings, and multi-jump sequences |
 | Gomoku | Five-in-a-row on a configurable board |
-| Nim | Pile-taking math game for turn-level strategy eval |
+| Nim | Pile-taking math game for turn-level strategy evaluation |
 
-War is available as a research prototype. Not part of the main arena.
-
----
+War is in the repo as a research prototype, not part of the main arena.
 
 ## Metrics
 
@@ -55,16 +47,14 @@ War is available as a research prototype. Not part of the main arena.
 |--------|-----------------|
 | TTFT | Time from request to first output token |
 | TPOT | Decode latency per generated token |
-| KV-Cache Memory | GPU memory consumed by the attention cache — grows with context length |
-| Scheduling Overhead | CPU time outside model execution — bottleneck at high concurrency |
+| KV-Cache Memory | GPU memory held by the attention cache. Grows with context length |
+| Scheduling Overhead | CPU time spent outside model execution. Becomes the bottleneck at high concurrency |
 | Prefix Cache Hit Rate | Fraction of prompt tokens served from cache |
 | Throughput | Requests per second across concurrency levels |
 
----
-
 ## Results
 
-Mock run, 4 engines, 20 rounds:
+Mock run, four engines, 20 rounds:
 
 | Engine | TTFT (ms) | TPOT (ms) | Throughput (req/s) | KV Cache (MB) |
 |--------|-----------|-----------|-------------------|---------------|
@@ -73,9 +63,7 @@ Mock run, 4 engines, 20 rounds:
 | preble | 58 | 21 | 10.3 | 310 |
 | infercept | 55 | 20 | 10.7 | 298 |
 
-Preble and Infercept use ~40% less KV-cache than baseline. The gap widens as conversation length increases.
-
----
+Preble and Infercept use roughly 40% less KV-cache than the baseline, and the gap grows as conversations get longer.
 
 ## Stack
 
@@ -92,11 +80,9 @@ Preble and Infercept use ~40% less KV-cache than baseline. The gap widens as con
 | API | FastAPI, Pydantic, uvicorn |
 | Dashboard | Streamlit, Plotly |
 
----
-
 ## Quickstart
 
-**Prerequisites:** Python 3.12+. GPU optional — `--model mock` runs everything on CPU.
+You need Python 3.12 or newer. A GPU is optional, since `--model mock` runs everything on CPU.
 
 ```bash
 python -m venv .venv
@@ -113,15 +99,13 @@ python scripts/benchmark.py systems --engines baseline vllm preble infercept --m
 python scripts/benchmark.py profiling --type throughput --engine baseline --model mock
 python scripts/benchmark.py profiling --type prefill_decode --engine baseline --model mock
 
-# API + dashboard
+# API and dashboard
 uvicorn main:app --reload --port 8000
 streamlit run streamlit_app.py
 
 # Tests
 pytest -q
 ```
-
----
 
 ## Architecture
 
@@ -142,13 +126,11 @@ Benchmark orchestration (evaluation/runner.py)
         |     - KV-cache growth, TTFT/TPOT, throughput, scheduling overhead
         |
         v
-SQLite → Dashboard
+SQLite -> Dashboard
 ```
 
-Every engine emits the same normalized metric schema (`serving/base.py`). See [docs/architecture.md](docs/architecture.md) for engine details, profiler descriptions, and DB schema.
-
----
+Every engine returns the same metric schema (`serving/base.py`), so adding a new backend means writing one class and nothing else has to change. See [docs/architecture.md](docs/architecture.md) for engine details, profiler descriptions, and the database schema.
 
 ## Contributing
 
-Run `pytest -q` before opening a PR. For GPU-backed engine changes, test with `--model mock` first.
+Run `pytest -q` before opening a PR. If you're touching a GPU-backed engine, run it with `--model mock` first so people without a GPU can still run the tests.

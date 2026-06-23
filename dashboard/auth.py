@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import streamlit as st
 
+from dashboard.navigation import switch_page_compat
+
 try:  # pragma: no cover - depends on Streamlit runtime internals
     from streamlit.runtime.scriptrunner import get_script_run_ctx
 except Exception:  # pragma: no cover
@@ -41,5 +43,5 @@ def require_user_profile(page_name: str) -> dict:
         unsafe_allow_html=True,
     )
     if st.button("Go To Login", type="primary", width='content'):
-        st.switch_page("app.py")
+        switch_page_compat("app.py")
     st.stop()

@@ -70,12 +70,16 @@ BASE_WINS = {
 }
 
 
+# Maps a move to the best response against it. For the four base moves the
+# response strictly beats the predicted move; against POWER nothing wins, so the
+# best non-losing reply is POWER itself (a tie) -- RECHARGE would lose. RECHARGE
+# is beaten by anything, and POWER is the cleanest counter when energy allows.
 BEST_COUNTER = {
     Move.ROCK: Move.PAPER,
     Move.PAPER: Move.SCISSORS,
     Move.SCISSORS: Move.ROCK,
     Move.LIZARD: Move.ROCK,
-    Move.POWER: Move.RECHARGE,
+    Move.POWER: Move.POWER,
     Move.RECHARGE: Move.POWER,
 }
 

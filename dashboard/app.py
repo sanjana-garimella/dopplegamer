@@ -21,6 +21,7 @@ if str(root) not in sys.path:
 
 from data.schemas import connect, init_db
 from dashboard.config import db_path as configured_db_path
+from dashboard.navigation import switch_page_compat
 from dashboard.ui import configure_page, render_sidebar_nav, style_plotly_figure
 from impostor.player_profiles import PlayerProfileManager
 
@@ -213,16 +214,16 @@ def _queue_live_game_launch(game_title: str, difficulty: str = "Balanced") -> No
 
 def _switch_to_live_arena() -> None:
     st.session_state["live_arena_experience"] = "Train Clone Match"
-    st.switch_page("pages/live_game.py")
+    switch_page_compat("pages/live_game.py")
 
 
 def _switch_to_player_profiles() -> None:
-    st.switch_page("pages/player_profile.py")
+    switch_page_compat("pages/player_profile.py")
 
 
 def _switch_to_arcade() -> None:
     st.session_state["live_arena_experience"] = "Play Arcade"
-    st.switch_page("pages/live_game.py")
+    switch_page_compat("pages/live_game.py")
 
 
 def _user_tracking_id() -> str | None:
@@ -509,7 +510,7 @@ def _preview_dialog(game_title: str, recent_games: pd.DataFrame):
 
     if st.button("Play", width='stretch', type="primary", key=f"play_{game_title}"):
         _queue_live_game_launch(game_title, difficulty)
-        st.switch_page("pages/live_game.py")
+        switch_page_compat("pages/live_game.py")
 
 
 if hasattr(st, "dialog"):
@@ -580,7 +581,7 @@ def _render_continue_playing(cards: list[dict]):
             )
             if st.button("Resume", key=f"resume_{item['title']}", width='stretch'):
                 _queue_live_game_launch(item["title"])
-                st.switch_page("pages/live_game.py")
+                switch_page_compat("pages/live_game.py")
 
 
 def _render_research_snapshot(db_path: Path):
@@ -701,7 +702,7 @@ def _render_home_hub(db_path: Path):
                 key="hero_resume_latest",
             ):
                 _queue_live_game_launch(continue_cards[0]["title"])
-                st.switch_page("pages/live_game.py")
+                switch_page_compat("pages/live_game.py")
             st.caption("Continue collecting clone-training data.")
     else:
         with quick_cols[0]:
@@ -712,7 +713,7 @@ def _render_home_hub(db_path: Path):
                 key="hero_start_connect_four",
             ):
                 _queue_live_game_launch("RPS+")
-                st.switch_page("pages/live_game.py")
+                switch_page_compat("pages/live_game.py")
             st.caption("Saved matches for clone training.")
     with quick_cols[1]:
         if st.button(
@@ -736,7 +737,7 @@ def _render_home_hub(db_path: Path):
             width='stretch',
             key="hero_clone_ops",
         ):
-            st.switch_page("pages/impostor_leaderboard.py")
+            switch_page_compat("pages/impostor_leaderboard.py")
         st.caption("Inspect fool rate, A/B blocks, and Turing-test ops.")
 
     st.divider()

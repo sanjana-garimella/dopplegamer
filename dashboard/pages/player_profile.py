@@ -40,6 +40,7 @@ from data.features import (
 from data.schemas import connect, init_db, init_extended_db
 from dashboard.auth import require_user_profile
 from dashboard.config import db_path as configured_db_path
+from dashboard.navigation import switch_page_compat
 from dashboard.ui import configure_page, render_empty_state, render_sidebar_nav, style_plotly_figure
 from environments.rps_plus import Move, RPSPlusEnv
 from environments.utils import history_to_records
@@ -994,7 +995,7 @@ def _render_profile_tab(conn: sqlite3.Connection, manager: PlayerProfileManager)
             "play_mode": "human_bot1",
             "max_turns": 20,
         }
-        st.switch_page("pages/live_game.py")
+        switch_page_compat("pages/live_game.py")
 
     st.divider()
     st.caption("Match Analytics")
@@ -1128,7 +1129,7 @@ def _render_play_tab(player_id: str, display_name: str, db_file: Path, manager: 
     if st.button("Start Train Clone Match", width='stretch'):
         st.session_state["live_arena_experience"] = "Train Clone Match"
         try:
-            st.switch_page("pages/live_game.py")
+            switch_page_compat("pages/live_game.py")
         except Exception:
             st.info("Use Train Clone Match from the home sidebar. Your selected profile is already active.")
 

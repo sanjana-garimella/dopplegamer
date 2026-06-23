@@ -94,7 +94,7 @@ def iter_examples(db_path: str | Path, history_window: int = 5) -> Iterator[SFTE
             row = matching.iloc[0]
             opponent_context = (
                 f"{row['opponent_name']} · seen {int(row['games'])} games · "
-                f"player win rate {float(row['player_win_rate']):.0%}"
+                f"player win rate {float(row['win_rate_vs_opponent']):.0%}"
             )
         for _, am, om, ae, oe in sorted(game_rows):
             prompt = format_prompt(

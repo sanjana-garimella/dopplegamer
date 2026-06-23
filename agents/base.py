@@ -7,7 +7,7 @@ from typing import Any
 
 import numpy as np
 
-from environments.rps_plus import Move
+from environments.rps_plus import BEST_COUNTER, Move
 
 
 class Agent(ABC):
@@ -68,14 +68,8 @@ class HeuristicAgent(Agent):
 
     name = "heuristic"
 
-    COUNTER = {
-        Move.ROCK: Move.PAPER,
-        Move.PAPER: Move.SCISSORS,
-        Move.SCISSORS: Move.ROCK,
-        Move.LIZARD: Move.ROCK,
-        Move.POWER: Move.RECHARGE,
-        Move.RECHARGE: Move.POWER,
-    }
+    # Canonical best-response table (POWER ties POWER; RECHARGE never wins).
+    COUNTER = BEST_COUNTER
 
     def __init__(self, seed: int | None = None) -> None:
         from environments.rps_plus import N_MOVES
@@ -120,14 +114,7 @@ class OptimalAgent(Agent):
 
     name = "optimal"
 
-    COUNTER = {
-        Move.ROCK: Move.PAPER,
-        Move.PAPER: Move.SCISSORS,
-        Move.SCISSORS: Move.ROCK,
-        Move.LIZARD: Move.ROCK,
-        Move.POWER: Move.RECHARGE,
-        Move.RECHARGE: Move.POWER,
-    }
+    COUNTER = BEST_COUNTER
 
     def __init__(self, seed: int | None = None) -> None:
         from environments.rps_plus import N_MOVES

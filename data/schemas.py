@@ -49,6 +49,9 @@ CREATE TABLE IF NOT EXISTS inference_benchmarks (
     total_latency_ms REAL,
     kv_cache_mb REAL,
     scheduling_overhead_ms REAL,
+    prefix_cache_hit_tokens INTEGER,
+    prefix_cache_miss_tokens INTEGER,
+    actual_backend TEXT,
     PRIMARY KEY (run_id, engine, turn)
 )
 """
@@ -65,6 +68,8 @@ CREATE TABLE IF NOT EXISTS agent_results (
     behavioral_fidelity REAL,
     action_kl REAL,
     avg_decision_ms REAL,
+    trained_vs_fallback TEXT,
+    checkpoint_path TEXT,
     PRIMARY KEY (run_id, agent_name)
 )
 """
@@ -318,6 +323,22 @@ def init_db(db_path: str | Path) -> None:
             conn.execute("ALTER TABLE detection_sessions ADD COLUMN blind_label TEXT")
         if "surprisal_summary_json" not in detection_columns:
             conn.execute("ALTER TABLE detection_sessions ADD COLUMN surprisal_summary_json TEXT")
+        inference_columns = {
+            row[1] for row in conn.execute("PRAGMA table_info(inference_benchmarks)").fetchall()
+        }
+        if "prefix_cache_hit_tokens" not in inference_columns:
+            conn.execute("ALTER TABLE inference_benchmarks ADD COLUMN prefix_cache_hit_tokens INTEGER")
+        if "prefix_cache_miss_tokens" not in inference_columns:
+            conn.execute("ALTER TABLE inference_benchmarks ADD COLUMN prefix_cache_miss_tokens INTEGER")
+        if "actual_backend" not in inference_columns:
+            conn.execute("ALTER TABLE inference_benchmarks ADD COLUMN actual_backend TEXT")
+        agent_columns = {
+            row[1] for row in conn.execute("PRAGMA table_info(agent_results)").fetchall()
+        }
+        if "trained_vs_fallback" not in agent_columns:
+            conn.execute("ALTER TABLE agent_results ADD COLUMN trained_vs_fallback TEXT")
+        if "checkpoint_path" not in agent_columns:
+            conn.execute("ALTER TABLE agent_results ADD COLUMN checkpoint_path TEXT")
         conn.commit()
     finally:
         conn.close()

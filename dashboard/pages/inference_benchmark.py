@@ -106,11 +106,18 @@ def render_inference_benchmark() -> None:
     
     # Total Latency Comparison
     st.caption("Total Latency by Engine")
-    latency_by_engine = df.groupby("engine")[["ttft_ms", "tpot_ms"]].mean()
-    latency_by_engine["total"] = latency_by_engine["ttft_ms"] + latency_by_engine["tpot_ms"]
+    if "total_latency_ms" in df.columns:
+        latency_by_engine = df.groupby("engine", as_index=False)["total_latency_ms"].mean()
+        latency_by_engine = latency_by_engine.rename(columns={"total_latency_ms": "total"})
+    else:
+        latency_by_engine = df.groupby("engine")[["ttft_ms", "tpot_ms", "output_tokens"]].mean()
+        latency_by_engine["total"] = latency_by_engine["ttft_ms"] + latency_by_engine["tpot_ms"] * (
+            latency_by_engine.get("output_tokens", 1) - 1
+        ).clip(lower=0)
+        latency_by_engine = latency_by_engine.reset_index()
     
     fig_total = px.bar(
-        latency_by_engine.reset_index(),
+        latency_by_engine,
         x="engine",
         y="total",
         title="Average Total Latency",

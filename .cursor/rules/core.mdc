@@ -1,0 +1,14 @@
+---
+description: Core project standards for every session
+alwaysApply: true
+---
+
+# Core standards
+
+- Python 3.12+. Prefer type hints and existing patterns over new abstractions.
+- After code changes, run `pytest -q`. Fix failures before claiming done.
+- Develop with `--model mock`. Do not assume GPU, vLLM, or CUDA.
+- Do not commit or push unless the user explicitly asks.
+- Read `.cursor/memory/learnings.md` and `decisions.md` before non-trivial work; append dated entries when you learn a gotcha or make an architecture decision.
+- Prefer editing existing modules over adding parallel copies of logic.
+- Keep README and user-facing docs free of em dashes, robotic fluff, and boasts.

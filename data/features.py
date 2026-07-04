@@ -13,12 +13,12 @@ from data.schemas import connect
 from environments.rps_plus import N_MOVES
 
 
+# Default agent battery for benchmarks. ngram/lstm stay registered for explicit
+# use after ImpostorTrainer fits them; untrained clones are not in the default set.
 CANONICAL_BASELINE_BATTERY = [
     "random",
     "heuristic",
     "profile_counter",
-    "ngram",
-    "lstm",
     "adaptive_router",
 ]
 

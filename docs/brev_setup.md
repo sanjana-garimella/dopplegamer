@@ -1,0 +1,211 @@
+# Running Doppelgamer on NVIDIA Brev
+
+Practical steps for a GPU instance on NVIDIA Brev: install, run the publication
+protocol (baseline vs vLLM), optional training, and cost ballparks.
+
+Laptop/CI uses `--model mock` (no GPU). Use Brev for real HuggingFace and vLLM
+numbers, or for SFT on a 1B-class model.
+
+**Before you start:** the instance must have the *current* repo (publication
+script, fail-loud engines, `requirements-gpu.txt`). Push your branch to GitHub
+and clone it, or `rsync`/`scp` your local tree. A clone of an old `main` will
+miss recent harness fixes.
+
+## Contents
+
+- [What you actually need a GPU for](#what-you-actually-need-a-gpu-for)
+- [Picking an instance](#picking-an-instance)
+- [First-time setup](#first-time-setup)
+- [Publication run (recommended)](#publication-run-recommended)
+- [Ad-hoc benchmarks](#ad-hoc-benchmarks)
+- [Preble / InferCept](#preble--infercept)
+- [Training the checkpoints](#training-the-checkpoints)
+- [Estimated cost](#estimated-cost)
+- [Keeping the bill down](#keeping-the-bill-down)
+
+## What you actually need a GPU for
+
+| Task | GPU needed | Notes |
+|------|-----------|-------|
+| Mock engine benchmarks | No | `--model mock` on CPU, used by CI |
+| HuggingFace baseline on a real model | Helpful | Small models run on CPU but slowly |
+| vLLM engine | Yes | vLLM needs CUDA to initialize |
+| SFT LoRA fine-tuning | Yes | `agents/sft/train.py`, 1B fits on 24 GB |
+| RL / BC+RL training | No (GPU optional) | MLP policy, mostly CPU |
+| Impostor training (LSTM/N-gram) | No | Small model, fine on CPU |
+
+Workloads use short generations (`max_new_tokens` around 8). Cost is dominated by
+model download/load and instance idle time, not decode length.
+
+## Picking an instance
+
+| Model size | Suggested GPU | VRAM |
+|------------|---------------|------|
+| distilgpt2, GPT-2, Llama-3.2-1B | L4 or A10G | 24 GB |
+| Llama-3.2-3B | A10G or A100 40 GB | 24-40 GB |
+| 7B-8B | A100 40/80 GB | 40-80 GB |
+
+Sweet spot for the paper path: **one L4 or A10G, disk ≥ 50 GB**.
+
+## First-time setup
+
+1. Create a GPU instance (Ubuntu + CUDA). Check the driver:
+
+   ```bash
+   nvidia-smi
+   ```
+
+2. Python **3.12+**, clone **current** code, venv:
+
+   ```bash
+   git clone https://github.com/sanjana-garimella/dopplegamer.git
+   cd dopplegamer
+   # or: git checkout <your-branch> after push
+   python -m venv .venv
+   source .venv/bin/activate
+   pip install -U pip
+   ```
+
+3. GPU deps (pulls CUDA torch via vLLM):
+
+   ```bash
+   pip install -r requirements-gpu.txt
+   ```
+
+   - `requirements-gpu.txt` = `requirements.txt` + `vllm`, `accelerate`, `bitsandbytes`.
+   - Gated models (Llama): `huggingface-cli login`.
+
+4. Env file:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+5. Smoke-test (CPU mock, no GPU burn):
+
+   ```bash
+   pytest -q
+   python scripts/benchmark.py systems --engines baseline vllm --model mock --rounds 20
+   ```
+
+Do **not** pass `--allow-fallback` for publication runs. Real models must fail loud
+if vLLM/CUDA is missing.
+
+## Publication run (recommended)
+
+One command: systems benchmark (game-driven prompts), host-wait / prefill-decode /
+throughput profiles, metadata, CSV export.
+
+```bash
+python scripts/run_publication_benchmark.py \
+  --model distilgpt2 \
+  --rounds 50 \
+  --out results/publication
+```
+
+Stronger main result (needs HF access for Llama):
+
+```bash
+python scripts/run_publication_benchmark.py \
+  --model meta-llama/Llama-3.2-1B \
+  --rounds 50 \
+  --out results/publication_1b
+```
+
+Copy **off the instance before delete**:
+
+- `results/publication/` (metadata.json, CSVs, profiler JSON)
+- `data/publication_run.db` (default DB path for that script)
+
+```bash
+# example from your laptop
+scp -r <brev-host>:~/dopplegamer/results/publication ./results/
+scp <brev-host>:~/dopplegamer/data/publication_run.db ./data/
+```
+
+Then stop/delete the Brev instance.
+
+Methodology to report: **library-mode** baseline vs vLLM; throughput mode is
+`engine_batch` for vLLM and `sequential` for HF; host-wait is **wall − CPU**
+(includes GPU wait), not serving-scheduler time.
+
+## Ad-hoc benchmarks
+
+```bash
+python scripts/benchmark.py systems \
+  --engines baseline vllm \
+  --model distilgpt2 \
+  --rounds 50
+
+python scripts/benchmark.py profiling --type throughput --engine vllm --model distilgpt2
+python scripts/benchmark.py profiling --type prefill_decode --engine vllm --model distilgpt2
+python scripts/benchmark.py profiling --type scheduling --engine vllm --model distilgpt2
+
+python scripts/export_results.py --db data/game_data.db --out results/
+```
+
+Optional local HF ablations (not Preble/InferCept):
+
+```bash
+python scripts/benchmark.py systems \
+  --engines baseline vllm hf_prefix_cache hf_tool_interrupt \
+  --model distilgpt2 \
+  --rounds 20
+```
+
+## Preble / InferCept
+
+These names are **remote-only**. They need a live OpenAI-compatible server:
+
+```bash
+export PREBLE_BASE_URL=http://preble-host:8000
+export INFERCEPT_BASE_URL=http://infercept-host:8000
+python scripts/benchmark.py systems --engines preble infercept --model your-served-model --rounds 20
+```
+
+Without those URLs, loading `preble` / `infercept` errors on purpose. Use
+`hf_prefix_cache` / `hf_tool_interrupt` for local ablations and label them as such.
+
+## Training the checkpoints
+
+```bash
+python -m agents.sft.train \
+  --model meta-llama/Llama-3.2-1B \
+  --data data/game_data.db \
+  --output checkpoints/sft_best \
+  --epochs 3 --lora-rank 16
+
+# Optional: --quantize-4bit on 24 GB for larger bases
+
+python -m agents.rl.train --timesteps 100000 --output checkpoints/ppo_best
+python scripts/train_real_checkpoints.py
+```
+
+Copy `checkpoints/` and the DB off the box before teardown.
+
+## Estimated cost
+
+On-demand ballparks (confirm in the Brev console):
+
+| GPU | Typical | Good for |
+|-----|---------|----------|
+| L4 (24 GB) | ~$0.70-1.10 / hr | publication protocol, 1B |
+| A10G (24 GB) | ~$1.00-1.50 / hr | 1B-3B, SFT |
+| A100 80 GB | ~$2.00-3.50 / hr | 7B |
+
+At ~$1.20/hr (L4/A10G):
+
+| Activity | Time | Cost |
+|----------|------|------|
+| Setup + downloads | 20-40 min | $0.40-0.80 |
+| Publication protocol, 50 rounds, small model | 30-60 min | $0.60-1.20 |
+| **Minimum paper systems pass** | **~1-1.5 hr** | **~$1-2** |
+| + SFT 1B | +30-90 min | +$0.60-1.80 |
+| Full sitting | 2-4 hr | **~$3-6** |
+
+## Keeping the bill down
+
+- Delete or stop the instance as soon as files are copied; enable auto-stop if available.
+- Debug with `--model mock` locally; only final configs on GPU.
+- Prefer distilgpt2 then 1B; skip live Preble/InferCept unless you already run those clusters.
+- One session for install + run + copy; do not leave GPUs idle overnight.

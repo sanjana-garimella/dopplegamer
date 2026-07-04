@@ -151,7 +151,7 @@ class RPSPlusEnv(gym.Env):
         action_m = Move(action)
         legal = self.legal_moves(agent=True)
         if action_m not in legal:
-            action_m = Move.RECHARGE if Move.RECHARGE in legal else legal[0]
+            raise ValueError(f"illegal RPS+ action {action_m.name}; legal={[m.name for m in legal]}")
 
         opponent_m = self._opponent_policy()
         outcome = resolve(action_m, opponent_m)

@@ -17,7 +17,7 @@ from typing import Any
 import numpy as np
 
 from data.schemas import connect, init_extended_db
-from environments.rps_plus import N_MOVES, Move
+from environments.rps_plus import BEST_COUNTER, N_MOVES, Move
 from impostor.metrics import retraining_trigger
 
 
@@ -76,14 +76,7 @@ class PlayerProfile:
 
 # ─────────────────────────────────────────────────────── signature computation
 
-_COUNTER: dict[int, int] = {
-    int(Move.ROCK):     int(Move.PAPER),
-    int(Move.PAPER):    int(Move.SCISSORS),
-    int(Move.SCISSORS): int(Move.ROCK),
-    int(Move.LIZARD):   int(Move.ROCK),
-    int(Move.POWER):    int(Move.POWER),
-    int(Move.RECHARGE): int(Move.POWER),
-}
+_COUNTER: dict[int, int] = {int(k): int(v) for k, v in BEST_COUNTER.items()}
 
 
 def compute_signature(

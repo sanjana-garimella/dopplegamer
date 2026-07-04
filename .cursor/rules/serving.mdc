@@ -1,0 +1,24 @@
+---
+description: Inference engine contract and factory fallback pattern
+globs: serving/**,inference/**
+alwaysApply: false
+---
+
+# Serving and inference
+
+Engines subclass `serving.base.InferenceEngine` and implement:
+
+```python
+def generate(self, prompt: str, max_new_tokens: int = 8) -> InferenceResult
+```
+
+`InferenceResult` fields: `text`, `prompt_tokens`, `output_tokens`, `ttft_ms`, `tpot_ms`, `total_latency_ms`, `kv_cache_mb`, `scheduling_overhead_ms`, `prefix_cache_hit_tokens`, `prefix_cache_miss_tokens`, optional `extra`.
+
+## Rules
+
+- Wire new engines in `inference/setup_inference_engines.py` with lazy `engines=[...]`. Real models raise `EngineLoadError` unless `allow_fallback=True`.
+- `model_name == "mock"` must return only `_MockEngine` instances (no GPU imports).
+- Primary: `baseline`, `vllm`. HF ablations: `hf_prefix_cache`, `hf_tool_interrupt`. Remote: `preble`, `infercept` (require `*_BASE_URL`).
+- Fallback rows must set `extra["fallback"]` and label as `requested→actual`.
+- Prefer library-mode timing; vLLM uses `generate_batch` for continuous batching.
+- Metric identity: `total_latency_ms ≈ ttft_ms + tpot_ms * (output_tokens - 1)`.

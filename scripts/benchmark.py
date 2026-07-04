@@ -1,8 +1,8 @@
-"""CLI for running AgentBench systems and agent benchmarks.
+"""CLI for running Doppelgamer systems and agent benchmarks.
 
 Usage:
     python scripts/benchmark.py agents --rounds 50
-    python scripts/benchmark.py systems --engine vllm --model distilgpt2
+    python scripts/benchmark.py systems --engines baseline vllm --model mock
     python scripts/benchmark.py profiling --type throughput
 """
 
@@ -23,12 +23,12 @@ from analysis.prefill_decode_split import compare_engines as profile_prefill_dec
 
 
 def main():
-    parser = argparse.ArgumentParser(description="AgentBench Benchmark CLI")
+    parser = argparse.ArgumentParser(description="Doppelgamer Benchmark CLI")
     subparsers = parser.add_subparsers(dest="command", help="Benchmark category")
 
     # Agents Benchmark
     agents_parser = subparsers.add_parser("agents", help="Run agent performance benchmarks")
-    agents_parser.add_argument("--rounds", type=int, default=100)
+    agents_parser.add_argument("--rounds", type=int, default=100, help="Games per agent per seed")
     agents_parser.add_argument("--agents", nargs="+", help="Specific agents to test")
     agents_parser.add_argument("--seeds", type=int, default=3, help="Number of seeds for variance")
     agents_parser.add_argument("--games", nargs="+", default=["RPS+"], help="Game types to benchmark")
@@ -36,16 +36,22 @@ def main():
 
     # Systems Benchmark
     systems_parser = subparsers.add_parser("systems", help="Run inference engine benchmarks")
-    systems_parser.add_argument("--engines", nargs="+", default=["baseline", "vllm", "preble", "infercept"])
+    systems_parser.add_argument("--engines", nargs="+", default=["baseline", "vllm"])
     systems_parser.add_argument("--model", default="mock")
     systems_parser.add_argument("--rounds", type=int, default=20)
     systems_parser.add_argument("--db", default="data/game_data.db")
+    systems_parser.add_argument(
+        "--allow-fallback",
+        action="store_true",
+        help="On real models, fall back to mock/baseline instead of failing loud",
+    )
 
     # Specialized Profiling
     profiling_parser = subparsers.add_parser("profiling", help="Run specialized systems profiling")
     profiling_parser.add_argument("--type", choices=["scheduling", "throughput", "prefill_decode"], required=True)
     profiling_parser.add_argument("--model", default="mock")
     profiling_parser.add_argument("--engine", default="baseline")
+    profiling_parser.add_argument("--allow-fallback", action="store_true")
 
     args = parser.parse_args()
 
@@ -78,12 +84,16 @@ def main():
             agents=[],  # Skip agents
             engines=args.engines,
             model_name=args.model,
-            db_path=args.db
+            db_path=args.db,
+            allow_fallback=args.allow_fallback,
         )
         print(f"Done. Results saved to {args.db}")
 
     elif args.command == "profiling":
-        engine_pool = setup_inference_engines(EngineConfig(model_name=args.model))
+        engine_pool = setup_inference_engines(
+            EngineConfig(model_name=args.model, allow_fallback=args.allow_fallback),
+            engines=[args.engine],
+        )
         if args.engine not in engine_pool:
             print(f"Error: engine {args.engine} not found.")
             sys.exit(1)
@@ -91,12 +101,14 @@ def main():
         engine = engine_pool[args.engine]
         
         if args.type == "scheduling":
-            print(f"Profiling CPU scheduling overhead for {args.engine}...")
+            print(
+                f"Profiling host idle wait (wall-cpu; not serving scheduler) for {args.engine}..."
+            )
             reports = profile_scheduling({args.engine: engine}, measure_runs=50)
             print(reports[args.engine].summary())
             
         elif args.type == "throughput":
-            print(f"Running throughput concurrency sweep for {args.engine}...")
+            print(f"Running throughput sweep for {args.engine} (safe mode auto-selected)...")
             reports = concurrency_sweep(engine, engine_name=args.engine, levels=[1, 2, 4, 8])
             for r in reports:
                 print(r.summary())

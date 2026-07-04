@@ -8,6 +8,7 @@ This runner executes:
 
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import asdict
 from datetime import datetime, timezone
 import time
@@ -40,6 +41,14 @@ ENV_REGISTRY = {
     "War": WarEnv,
 }
 
+# Turns per RPS+ game when `rounds` is the number of games.
+RPS_TURNS_PER_GAME = 20
+BOARD_MAX_MOVES = 100
+SYSTEM_PROMPT = (
+    "You are playing a multi-turn game. History grows each turn. "
+    "Reply with a single legal move name."
+)
+
 
 def _agent_factory(name: str):
     if name in AGENT_REGISTRY:
@@ -59,48 +68,198 @@ def _new_env(game_type: str, max_turns: int, seed: int):
     return env_cls(max_moves=max_turns, seed=seed)
 
 
-def _insert_agent_result(conn, run_id: str, row: AgentScore) -> None:
-    conn.execute(
-        """INSERT OR REPLACE INTO agent_results
-        (run_id, agent_name, games_played, wins, losses, ties, win_rate,
-         behavioral_fidelity, action_kl, avg_decision_ms)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (
-            run_id,
-            row.agent_name,
-            row.games_played,
-            row.wins,
-            row.losses,
-            row.ties,
-            row.win_rate,
-            row.behavioral_fidelity,
-            row.action_kl,
-            row.avg_decision_ms,
-        ),
-    )
+def _engine_row_name(requested: str, result) -> str:
+    """Label fallback rows so engine column is not misread as the real backend."""
+    extra = getattr(result, "extra", None) or {}
+    if not extra.get("fallback"):
+        return requested
+    actual = extra.get("actual_backend") or "unknown"
+    return f"{requested}→{actual}"
+
+
+def _checkpoint_meta(agent_name: str) -> dict[str, Any]:
+    try:
+        from agents.checkpoints import resolve_checkpoint
+
+        path = resolve_checkpoint(agent_name)
+        return {
+            "checkpoint_path": str(path) if path is not None else None,
+            "trained_vs_fallback": "trained" if path is not None else "fallback",
+        }
+    except Exception:
+        return {"checkpoint_path": None, "trained_vs_fallback": "unknown"}
+
+
+def _insert_agent_result(conn, run_id: str, row: AgentScore, meta: dict[str, Any] | None = None) -> None:
+    meta = meta or {}
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(agent_results)").fetchall()}
+    if "trained_vs_fallback" in cols and "checkpoint_path" in cols:
+        conn.execute(
+            """INSERT OR REPLACE INTO agent_results
+            (run_id, agent_name, games_played, wins, losses, ties, win_rate,
+             behavioral_fidelity, action_kl, avg_decision_ms, trained_vs_fallback, checkpoint_path)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                run_id,
+                row.agent_name,
+                row.games_played,
+                row.wins,
+                row.losses,
+                row.ties,
+                row.win_rate,
+                row.behavioral_fidelity,
+                row.action_kl,
+                row.avg_decision_ms,
+                meta.get("trained_vs_fallback"),
+                meta.get("checkpoint_path"),
+            ),
+        )
+    else:
+        conn.execute(
+            """INSERT OR REPLACE INTO agent_results
+            (run_id, agent_name, games_played, wins, losses, ties, win_rate,
+             behavioral_fidelity, action_kl, avg_decision_ms)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                run_id,
+                row.agent_name,
+                row.games_played,
+                row.wins,
+                row.losses,
+                row.ties,
+                row.win_rate,
+                row.behavioral_fidelity,
+                row.action_kl,
+                row.avg_decision_ms,
+            ),
+        )
 
 
 def _insert_inference_row(conn, run_id: str, engine_name: str, model: str, quantization: str, turn: int, result) -> None:
-    conn.execute(
-        """INSERT OR REPLACE INTO inference_benchmarks
-        (run_id, engine, model, quantization, turn, prompt_tokens, output_tokens,
-         ttft_ms, tpot_ms, total_latency_ms, kv_cache_mb, scheduling_overhead_ms)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (
-            run_id,
-            engine_name,
-            model,
-            quantization,
-            turn,
-            result.prompt_tokens,
-            result.output_tokens,
-            result.ttft_ms,
-            result.tpot_ms,
-            result.total_latency_ms,
-            result.kv_cache_mb,
-            result.scheduling_overhead_ms,
-        ),
-    )
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(inference_benchmarks)").fetchall()}
+    if "prefix_cache_hit_tokens" in cols:
+        conn.execute(
+            """INSERT OR REPLACE INTO inference_benchmarks
+            (run_id, engine, model, quantization, turn, prompt_tokens, output_tokens,
+             ttft_ms, tpot_ms, total_latency_ms, kv_cache_mb, scheduling_overhead_ms,
+             prefix_cache_hit_tokens, prefix_cache_miss_tokens, actual_backend)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                run_id,
+                engine_name,
+                model,
+                quantization,
+                turn,
+                result.prompt_tokens,
+                result.output_tokens,
+                result.ttft_ms,
+                result.tpot_ms,
+                result.total_latency_ms,
+                result.kv_cache_mb,
+                result.scheduling_overhead_ms,
+                result.prefix_cache_hit_tokens,
+                result.prefix_cache_miss_tokens,
+                (result.extra or {}).get("actual_backend"),
+            ),
+        )
+    else:
+        conn.execute(
+            """INSERT OR REPLACE INTO inference_benchmarks
+            (run_id, engine, model, quantization, turn, prompt_tokens, output_tokens,
+             ttft_ms, tpot_ms, total_latency_ms, kv_cache_mb, scheduling_overhead_ms)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                run_id,
+                engine_name,
+                model,
+                quantization,
+                turn,
+                result.prompt_tokens,
+                result.output_tokens,
+                result.ttft_ms,
+                result.tpot_ms,
+                result.total_latency_ms,
+                result.kv_cache_mb,
+                result.scheduling_overhead_ms,
+            ),
+        )
+
+
+def _play_games(
+    agent_name: str,
+    game_type: str,
+    n_games: int,
+    seed: int,
+) -> tuple[int, int, int, list[int], list[float]]:
+    """Play `n_games` independent episodes. Returns wins, losses, ties, actions, latencies."""
+    agent = _agent_factory(agent_name)
+    wins = losses = ties = 0
+    action_log: list[int] = []
+    decision_latencies: list[float] = []
+    max_turns = RPS_TURNS_PER_GAME if game_type == "RPS+" else BOARD_MAX_MOVES
+
+    for game_i in range(n_games):
+        game_seed = seed * 100_003 + game_i
+        env = _new_env(game_type, max_turns, game_seed)
+        reset_fn = getattr(agent, "reset", None)
+        if callable(reset_fn):
+            reset_fn(seed=game_seed)
+        obs, info = env.reset(seed=game_seed)
+        done = False
+        while not done:
+            t0 = time.perf_counter()
+            action = int(agent.act(obs, info))
+            legal = info.get("legal_moves") or []
+            # Clamp illegal actions so one bad step does not abort the whole run.
+            # RPS+ still raises if an illegal action reaches env.step.
+            if legal and action not in legal:
+                action = int(legal[0])
+            decision_latencies.append((time.perf_counter() - t0) * 1000.0)
+            action_log.append(action)
+            obs, reward, terminated, truncated, info = env.step(action)
+            if game_type == "RPS+" and getattr(env.state, "history", None):
+                last = env.state.history[-1]
+                observe = getattr(agent, "observe", None)
+                if callable(observe):
+                    observe(int(last.agent_move), int(last.opponent_move), int(last.outcome))
+            done = terminated or truncated
+
+        if env.state.agent_score > env.state.opponent_score:
+            wins += 1
+        elif env.state.agent_score < env.state.opponent_score:
+            losses += 1
+        else:
+            ties += 1
+
+    return wins, losses, ties, action_log, decision_latencies
+
+
+def _game_driven_prompts(n_turns: int, seed: int) -> list[str]:
+    """Build growing multi-turn prompts from a seeded RPS+ trajectory."""
+    env = RPSPlusEnv(max_turns=max(n_turns, 1), seed=seed)
+    obs, info = env.reset(seed=seed)
+    history_lines: list[str] = []
+    prompts: list[str] = []
+    done = False
+    turn = 0
+    while not done and turn < n_turns:
+        legal = info.get("legal_moves") or [0]
+        action = int(legal[turn % len(legal)])
+        obs, reward, terminated, truncated, info = env.step(action)
+        if env.state.history:
+            last = env.state.history[-1]
+            history_lines.append(
+                f"Turn {last.turn}: agent={int(last.agent_move)} opp={int(last.opponent_move)} "
+                f"outcome={int(last.outcome)}"
+            )
+        history_block = "\n".join(history_lines)
+        prompts.append(f"{SYSTEM_PROMPT}\n\n{history_block}\n\nPredict the next move.")
+        done = terminated or truncated
+        turn += 1
+    # Pad if the game ended early.
+    while len(prompts) < n_turns:
+        prompts.append(prompts[-1] if prompts else SYSTEM_PROMPT)
+    return prompts
 
 
 def run_benchmark(
@@ -112,9 +271,10 @@ def run_benchmark(
     model_name: str = "mock",
     n_seeds: int = 1,
     games: list[str] | None = None,
+    allow_fallback: bool = False,
 ) -> dict[str, Any]:
     if engines is None:
-        engines = ["baseline", "vllm", "preble", "infercept"]
+        engines = ["baseline", "vllm"]
     if agents is None:
         agents = _benchmark_ready_agents()
     games = [canonical_game_type(g) or g for g in (games or ["RPS+"])]
@@ -122,57 +282,32 @@ def run_benchmark(
 
     init_db(db_path)
     conn = connect(db_path)
+    fidelity_reference = "none"
     try:
-        # ----------------------- agent performance with multiple seeds
         all_scores: list[AgentScore] = []
         game_breakdown: list[dict[str, Any]] = []
         for seed in range(n_seeds):
             for game_type in games:
-                reference_actions: list[int] = []
+                ref_name = "none"
+                if game_type == "RPS+":
+                    ref_name = "sft" if "sft" in agents and "sft" in AGENT_REGISTRY else "heuristic"
+                    fidelity_reference = ref_name
+
+                # Play each agent once; reuse reference agent actions when present.
+                played: dict[str, tuple[int, int, int, list[int], list[float]]] = {}
                 for agent_name in agents:
-                    agent = _agent_factory(agent_name)
-                    env = _new_env(game_type, rounds, seed)
-                    obs, info = env.reset(seed=seed)
-                    wins = losses = ties = 0
-                    action_log: list[int] = []
-                    decision_latencies: list[float] = []
-                    done = False
-                    while not done:
-                        t0 = time.perf_counter()
-                        action = int(agent.act(obs, info))
-                        if action not in (info.get("legal_moves") or []):
-                            legal = info.get("legal_moves") or [0]
-                            action = int(legal[0])
-                        decision_latencies.append((time.perf_counter() - t0) * 1000.0)
-                        action_log.append(action)
-                        obs, reward, terminated, truncated, info = env.step(action)
-                        if game_type == "RPS+":
-                            if reward > 0:
-                                wins += 1
-                            elif reward < 0:
-                                losses += 1
-                            else:
-                                ties += 1
-                        # Let RPS+ agents update local memory with compatible move ids.
-                        if game_type == "RPS+" and getattr(env.state, "history", None):
-                            last = env.state.history[-1]
-                            observe = getattr(agent, "observe", None)
-                            if callable(observe):
-                                observe(int(last.agent_move), int(last.opponent_move), int(last.outcome))
-                        done = terminated or truncated
+                    played[agent_name] = _play_games(agent_name, game_type, rounds, seed)
+                if game_type == "RPS+" and ref_name not in played and ref_name in AGENT_REGISTRY:
+                    played[ref_name] = _play_games(ref_name, game_type, rounds, seed)
 
-                    if game_type != "RPS+":
-                        if env.state.agent_score > env.state.opponent_score:
-                            wins = 1
-                        elif env.state.agent_score < env.state.opponent_score:
-                            losses = 1
-                        else:
-                            ties = 1
+                reference_actions: list[int] = []
+                if game_type == "RPS+" and ref_name in played:
+                    reference_actions = played[ref_name][3]
 
-                    if agent_name == "sft" and game_type == "RPS+" and not reference_actions:
-                        reference_actions = action_log[:]
-                    if game_type == "RPS+":
-                        p = action_distribution(reference_actions) if reference_actions else np.ones(6) / 6
+                for agent_name in agents:
+                    wins, losses, ties, action_log, decision_latencies = played[agent_name]
+                    if game_type == "RPS+" and reference_actions:
+                        p = action_distribution(reference_actions)
                         q = action_distribution(action_log)
                         fidelity = max(0.0, 1.0 - float(np.abs(p - q).sum()) / 2.0)
                         action_kl = kl_divergence(p, q)
@@ -180,25 +315,24 @@ def run_benchmark(
                         fidelity = 0.0
                         action_kl = 0.0
 
+                    meta = _checkpoint_meta(agent_name)
                     score = AgentScore(
                         agent_name=f"{agent_name}::{game_type}_seed{seed}",
-                        games_played=rounds if game_type == "RPS+" else 1,
+                        games_played=rounds,
                         wins=wins,
                         losses=losses,
                         ties=ties,
-                        win_rate=wins / max(1, (rounds if game_type == "RPS+" else 1)),
+                        win_rate=wins / max(1, rounds),
                         behavioral_fidelity=fidelity,
                         action_kl=action_kl,
                         avg_decision_ms=float(np.mean(decision_latencies)) if decision_latencies else 0.0,
                     )
-                    _insert_agent_result(conn, run_id, score)
+                    _insert_agent_result(conn, run_id, score, meta)
                     all_scores.append(score)
 
-        # Aggregate scores across seeds
-        from collections import defaultdict
-        aggregated_scores = defaultdict(list)
+        aggregated_scores: dict[str, list[AgentScore]] = defaultdict(list)
         for score in all_scores:
-            base_name = score.agent_name.rsplit('_seed', 1)[0]
+            base_name = score.agent_name.rsplit("_seed", 1)[0]
             aggregated_scores[base_name].append(score)
 
         final_scores = []
@@ -207,6 +341,8 @@ def run_benchmark(
             fidelities = [s.behavioral_fidelity for s in scores]
             kls = [s.action_kl for s in scores]
             latencies = [s.avg_decision_ms for s in scores]
+            bare = agent_name.split("::", 1)[0]
+            meta = _checkpoint_meta(bare)
             final_score = AgentScore(
                 agent_name=agent_name,
                 games_played=sum(s.games_played for s in scores),
@@ -219,12 +355,12 @@ def run_benchmark(
                 avg_decision_ms=float(np.mean(latencies)),
             )
             final_scores.append(final_score)
-            _insert_agent_result(conn, run_id + "_agg", final_score)
+            _insert_agent_result(conn, run_id + "_agg", final_score, meta)
 
             game_name = agent_name.split("::", 1)[1] if "::" in agent_name else "RPS+"
             game_breakdown.append(
                 {
-                    "agent_name": agent_name.split("::", 1)[0],
+                    "agent_name": bare,
                     "game_type": game_name,
                     "games_played": final_score.games_played,
                     "wins": final_score.wins,
@@ -233,46 +369,64 @@ def run_benchmark(
                     "win_rate": final_score.win_rate,
                     "avg_decision_ms": final_score.avg_decision_ms,
                     "win_rate_stats": asdict(summary_stats(win_rates)),
+                    "fidelity_reference": fidelity_reference,
+                    "trained_vs_fallback": meta.get("trained_vs_fallback"),
                 }
             )
 
-        # Statistical significance (t-test vs random)
-        random_scores = [s for s in final_scores if s.agent_name == "random"]
-        if random_scores:
-            random_win = random_scores[0].win_rate
+        # Statistical significance (t-test vs random::* keys)
+        random_keys = [k for k in aggregated_scores if k.startswith("random::") or k == "random"]
+        if random_keys and n_seeds > 1:
             for score in final_scores:
-                if score.agent_name != "random":
-                    try:
-                        from scipy.stats import ttest_ind
-                        agent_wins = [s.win_rate for s in aggregated_scores[score.agent_name]]
-                        random_wins = [s.win_rate for s in aggregated_scores["random"]]
-                        if len(agent_wins) > 1 and len(random_wins) > 1 and (np.var(agent_wins) > 0 or np.var(random_wins) > 0):
-                            t_stat, p_value = ttest_ind(agent_wins, random_wins)
-                            significance = "significant" if p_value < 0.05 else "not significant"
-                            print(f"{score.agent_name} vs random: win_rate diff {significance} (p={p_value:.3f})")
-                        else:
-                            print(f"{score.agent_name} vs random: insufficient variance for t-test")
-                    except ImportError:
-                        print("Scipy not available for stats")
+                if score.agent_name.startswith("random::") or score.agent_name == "random":
+                    continue
+                game_suffix = score.agent_name.split("::", 1)[1] if "::" in score.agent_name else ""
+                random_key = next(
+                    (k for k in random_keys if k.endswith(f"::{game_suffix}") or k == "random"),
+                    random_keys[0],
+                )
+                try:
+                    from scipy.stats import ttest_ind
 
-        all_scores = final_scores  # For return
+                    agent_wins = [s.win_rate for s in aggregated_scores[score.agent_name]]
+                    random_wins = [s.win_rate for s in aggregated_scores[random_key]]
+                    if len(agent_wins) > 1 and len(random_wins) > 1 and (
+                        np.var(agent_wins) > 0 or np.var(random_wins) > 0
+                    ):
+                        _, p_value = ttest_ind(agent_wins, random_wins)
+                        significance = "significant" if p_value < 0.05 else "not significant"
+                        print(
+                            f"{score.agent_name} vs {random_key}: "
+                            f"win_rate diff {significance} (p={p_value:.3f})"
+                        )
+                    else:
+                        print(f"{score.agent_name} vs {random_key}: insufficient variance for t-test")
+                except ImportError:
+                    print("Scipy not available for stats")
+
+        all_scores = final_scores
 
         # ----------------------- inference systems benchmarks
-        engine_pool = setup_inference_engines(EngineConfig(model_name=model_name))
-        selected = {k: v for k, v in engine_pool.items() if k in engines}
-        prompts = [
-            "You are playing RPS+ turn 1. Predict next move.",
-            "You are playing RPS+ turn 20 with long history context. Predict next move.",
-            "Tool result indicates opponent favors ROCK. Choose best response.",
-        ]
+        engine_cfg = EngineConfig(model_name=model_name, allow_fallback=allow_fallback)
+        # Lazy: construct only requested engines.
+        selected = setup_inference_engines(engine_cfg, engines=engines)
+
+        prompts = _game_driven_prompts(rounds, seed=0) if engines else []
         for engine_name, engine in selected.items():
+            warmup = getattr(engine, "warmup", None)
+            if callable(warmup):
+                try:
+                    warmup()
+                except Exception as warmup_exc:
+                    # Do not silence forever: first measured turn may include cold start.
+                    print(f"warmup failed for {engine_name}: {warmup_exc}")
             for idx in range(rounds):
-                prompt = prompts[idx % len(prompts)] + f" [turn={idx+1}]"
+                prompt = prompts[idx % len(prompts)]
                 result = engine.generate(prompt, max_new_tokens=6)
                 _insert_inference_row(
                     conn,
                     run_id=run_id,
-                    engine_name=engine_name,
+                    engine_name=_engine_row_name(engine_name, result),
                     model=model_name,
                     quantization="fp16",
                     turn=idx + 1,
@@ -290,6 +444,8 @@ def run_benchmark(
         "game_breakdown": game_breakdown,
         "engines": engines,
         "games": games,
+        "fidelity_reference": fidelity_reference,
+        "model_name": model_name,
     }
 
 
@@ -336,7 +492,11 @@ def benchmark_clone_variants(
             q = action_distribution(predicted_moves)
             fid = max(0.0, 1.0 - float(np.abs(p_human - q).sum()) / 2.0)
             kl = kl_divergence(p_human, q)
-            avg_decision_ms = float(np.mean(latencies_ms)) if latencies_ms else float(getattr(agent, "latency_estimate_ms", lambda: 0.5)())
+            avg_decision_ms = (
+                float(np.mean(latencies_ms))
+                if latencies_ms
+                else float(getattr(agent, "latency_estimate_ms", lambda: 0.5)())
+            )
             row = AgentScore(
                 agent_name=name,
                 games_played=len(eval_sequences),

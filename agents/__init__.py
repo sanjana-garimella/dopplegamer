@@ -17,6 +17,8 @@ register_agent("bc_rl", BCPlusRLAgent)
 register_agent("agentic", AgenticLLM)
 register_agent("profile_counter", ProfileCounterAgent)
 register_agent("adaptive_router", AdaptiveRouterAgent)
+register_agent("ngram", NGramImpostor)
+register_agent("lstm", LSTMImpostor)
 
 __all__ = [
     "Agent",

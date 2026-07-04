@@ -1,0 +1,6 @@
+# GPU extras on top of requirements.txt (install after the base file).
+# On Brev/CUDA hosts this replaces the CPU torch wheel with a CUDA build via vllm.
+-r requirements.txt
+vllm
+accelerate
+bitsandbytes

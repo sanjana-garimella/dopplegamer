@@ -23,8 +23,33 @@ from environments.utils import history_to_records, random_policy, run_episode
 
 PolicyFactory = Callable[[int | None], Callable[[np.ndarray, dict], int]]
 
+
+def _agent_policy(agent_name: str) -> PolicyFactory:
+    def factory(seed: int | None = None):
+        from agents import AGENT_REGISTRY
+
+        agent = AGENT_REGISTRY[agent_name](seed=seed) if seed is not None else AGENT_REGISTRY[agent_name]()
+        reset = getattr(agent, "reset", None)
+        if callable(reset):
+            reset(seed=seed)
+
+        def policy(obs: np.ndarray, info: dict) -> int:
+            action = int(agent.act(obs, info))
+            legal = info.get("legal_moves") or []
+            if legal and action not in legal:
+                action = int(legal[0])
+            return action
+
+        return policy
+
+    return factory
+
+
 POLICY_REGISTRY: dict[str, PolicyFactory] = {
     "random": random_policy,
+    "heuristic": _agent_policy("heuristic"),
+    "optimal": _agent_policy("optimal"),
+    "lag1_counter": _agent_policy("lag1_counter"),
 }
 
 ENV_REGISTRY = {
@@ -194,7 +219,7 @@ def main() -> None:
     p.add_argument("--rounds", type=int, default=500, help="number of games to play")
     p.add_argument("--max-turns", type=int, default=50)
     p.add_argument("--game", default="RPS+", choices=list(ENV_REGISTRY))
-    p.add_argument("--policy", default="random", choices=list(POLICY_REGISTRY))
+    p.add_argument("--policy", default="random", choices=sorted(POLICY_REGISTRY))
     p.add_argument("--seed", type=int, default=None)
     p.add_argument("--agent-name", default=None)
     args = p.parse_args()

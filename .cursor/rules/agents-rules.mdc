@@ -1,0 +1,21 @@
+---
+description: Agent policy contract, registry, and counter tables
+globs: agents/**,impostor/**
+alwaysApply: false
+---
+
+# Agents and impostor
+
+Subclass `agents.base.Agent`:
+
+- `act(obs, info) -> int` required; `info` must include non-empty `legal_moves`
+- `reset(seed=None)` and `observe(agent_move, opponent_move, outcome)` optional
+
+Register policies with `register_agent(name, cls)` in `agents/__init__.py` so `AGENT_REGISTRY` and the evaluation runner can find them.
+
+## Rules
+
+- Import `BEST_COUNTER` from `environments/rps_plus.py` for RPS+ best-response logic. Do not copy local counter dicts (POWER must map to POWER, not RECHARGE).
+- Load trained weights via `agents.checkpoints.resolve_checkpoint`, not hard-coded paths.
+- Impostor metrics and profiles must use the same counter semantics as the env.
+- Keep agentic LLM fallbacks legal-move-safe; never assume action space size is always 6.

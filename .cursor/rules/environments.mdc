@@ -1,0 +1,24 @@
+---
+description: Game environment contracts and determinism rules
+globs: environments/**
+alwaysApply: false
+---
+
+# Environments
+
+Every env implements:
+
+- `reset(seed: int | None = None) -> (obs, info)`
+- `step(action) -> (obs, reward, terminated, truncated, info)`
+- `legal_moves() -> list[int]`
+- `info` always includes `legal_moves` (and usually `n_legal`)
+
+Shared types: `EnvState`, `RoundResult` (see `environments/tic_tac_toe.py` and RPS+).
+
+## Rules
+
+- Same seed must produce the same trajectory.
+- Illegal actions raise `ValueError` (RPS+ included; smoke-test future games may document fallbacks).
+- Register new envs in `environments/__init__.py` and add rules to `environments/game_specs.py` when they appear in the dashboard.
+- RPS+ only: import `BEST_COUNTER` from `environments/rps_plus.py`. Never define a local POWER counter map.
+- Mirror patterns in `tests/test_environment.py` and `tests/test_future_games.py` when adding tests.

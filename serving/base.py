@@ -35,10 +35,18 @@ class InferenceResult:
 
 class InferenceEngine(ABC):
     name: str = "engine"
+    # True only if concurrent client threads are safe (e.g. remote HTTP server).
+    supports_concurrent_clients: bool = False
+    # True if generate_batch uses real continuous/batching (e.g. vLLM).
+    supports_engine_batch: bool = False
 
     @abstractmethod
     def generate(self, prompt: str, max_new_tokens: int = 8) -> InferenceResult:
         ...
+
+    def generate_batch(self, prompts: list[str], max_new_tokens: int = 8) -> list[InferenceResult]:
+        """Optional batched generate. Default: sequential generate calls."""
+        return [self.generate(p, max_new_tokens=max_new_tokens) for p in prompts]
 
     def warmup(self) -> None:
         return None

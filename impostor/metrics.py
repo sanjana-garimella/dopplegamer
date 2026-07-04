@@ -13,7 +13,7 @@ from typing import Any
 
 import numpy as np
 
-from environments.rps_plus import N_MOVES, Move
+from environments.rps_plus import BEST_COUNTER, N_MOVES, Move
 
 
 # ─────────────────────────────────────────────────────────── data classes
@@ -233,11 +233,7 @@ def per_decision_bias_rates(
 
     power = int(Move.POWER)
     recharge = int(Move.RECHARGE)
-    counter_map = {
-        int(Move.ROCK): int(Move.PAPER), int(Move.PAPER): int(Move.SCISSORS),
-        int(Move.SCISSORS): int(Move.ROCK), int(Move.LIZARD): int(Move.ROCK),
-        int(Move.POWER): int(Move.POWER), int(Move.RECHARGE): int(Move.POWER),
-    }
+    counter_map = {int(k): int(v) for k, v in BEST_COUNTER.items()}
 
     recency_hits = 0
     aggression_hits = 0

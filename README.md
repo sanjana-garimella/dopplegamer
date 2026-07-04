@@ -14,17 +14,20 @@ Doppelgamer is a benchmarking setup for LLM inference engines. It uses games as 
 - [Results](#results)
 - [Stack](#stack)
 - [Quickstart](#quickstart)
+- [GPU / publication](#gpu--publication)
 - [Architecture](#architecture)
 - [Contributing](#contributing)
 
 ## What it does
 
-- Runs four inference engines (HuggingFace, vLLM, Preble, Infercept) on the same workloads. Switching between them is one CLI flag.
-- Treats each game as a workload generator. Give it a seed and you get back the same multi-turn conversation every time, with discrete moves and a reward per turn.
-- Trains and evaluates a few kinds of agents: RL (stable-baselines3), SFT (PEFT), LSTM impostors, and logistic regression baselines.
-- Tracks how the KV cache grows turn over turn, since that memory is usually what limits long-context serving.
-- Includes deterministic mock engines, so everything runs on a laptop with no GPU. CI uses the same path.
-- Saves results to SQLite and shows them through a FastAPI backend and a Streamlit dashboard.
+- Runs inference engines (HuggingFace baseline and vLLM by default) on the same workloads.
+- Optional local HF ablations: `hf_prefix_cache`, `hf_tool_interrupt` (not Preble/InferCept).
+- Optional remote engines: `preble` / `infercept` only if `PREBLE_BASE_URL` / `INFERCEPT_BASE_URL` point at OpenAI-compatible servers.
+- Treats each game as a workload generator. Same seed, same multi-turn trajectory, discrete moves and a reward per turn.
+- Trains and evaluates agents: RL (stable-baselines3), SFT (PEFT), LSTM/N-gram impostors, and heuristic baselines.
+- Tracks KV-cache growth, TTFT/TPOT, prefix reuse, and throughput (with explicit modes).
+- Includes deterministic mock engines for laptop and CI (`--model mock`).
+- Saves results to SQLite and shows them in FastAPI and Streamlit.
 
 ## Games
 
@@ -47,23 +50,23 @@ War is in the repo as a research prototype, not part of the main arena.
 |--------|-----------------|
 | TTFT | Time from request to first output token |
 | TPOT | Decode latency per generated token |
-| KV-Cache Memory | GPU memory held by the attention cache. Grows with context length |
-| Scheduling Overhead | CPU time spent outside model execution. Becomes the bottleneck at high concurrency |
-| Prefix Cache Hit Rate | Fraction of prompt tokens served from cache |
-| Throughput | Requests per second across concurrency levels |
+| Total latency | End-to-end request time (`total_latency_ms`) |
+| KV-cache memory | Attention cache size (engine-reported or formula) |
+| Prefix cache hit rate | Fraction of prompt tokens served from a shared prefix |
+| Throughput | Requests per second; modes: `sequential`, `engine_batch` (vLLM), `threaded_clients` (remote) |
+| Host wait | `wall - cpu` around generate (includes GPU wait; not serving-scheduler time) |
 
 ## Results
 
-Mock run, four engines, 20 rounds:
+Mock engines share the same timings by design (CI only). They do not rank real backends.
 
-| Engine | TTFT (ms) | TPOT (ms) | Throughput (req/s) | KV Cache (MB) |
-|--------|-----------|-----------|-------------------|---------------|
-| baseline | 142 | 38 | 4.2 | 512 |
-| vllm | 61 | 22 | 9.8 | 480 |
-| preble | 58 | 21 | 10.3 | 310 |
-| infercept | 55 | 20 | 10.7 | 298 |
+For publishable numbers, use the fixed GPU protocol (fail-loud, baseline vs vLLM, metadata + CSV):
 
-Preble and Infercept use roughly 40% less KV-cache than the baseline, and the gap grows as conversations get longer.
+```bash
+python scripts/run_publication_benchmark.py --model distilgpt2 --rounds 50 --out results/publication
+```
+
+See [docs/brev_setup.md](docs/brev_setup.md) for NVIDIA Brev setup and cost notes. Report **library-mode** methodology; do not claim Preble/InferCept unless you ran remote clusters.
 
 ## Stack
 
@@ -74,15 +77,14 @@ Preble and Infercept use roughly 40% less KV-cache than the baseline, and the ga
 | RL agents | stable-baselines3 |
 | Deep learning | PyTorch |
 | Game environments | Gymnasium, python-chess |
-| Vector storage | ChromaDB |
-| ML baselines | scikit-learn |
+| Optional agentic RAG | ChromaDB |
 | Data | pandas, numpy, SQLite |
 | API | FastAPI, Pydantic, uvicorn |
 | Dashboard | Streamlit, Plotly |
 
 ## Quickstart
 
-You need Python 3.12 or newer. A GPU is optional, since `--model mock` runs everything on CPU.
+Python 3.12 or newer. GPU optional; `--model mock` runs on CPU.
 
 ```bash
 python -m venv .venv
@@ -92,12 +94,16 @@ cp .env.example .env
 ```
 
 ```bash
-# Benchmark across engines (no GPU required)
-python scripts/benchmark.py systems --engines baseline vllm preble infercept --model mock --rounds 20
+# Systems (mock, no GPU)
+python scripts/benchmark.py systems --engines baseline vllm --model mock --rounds 20
+
+# Agents (rounds = games; RPS+ uses 20 turns per game)
+python scripts/benchmark.py agents --rounds 50
 
 # Profilers
 python scripts/benchmark.py profiling --type throughput --engine baseline --model mock
 python scripts/benchmark.py profiling --type prefill_decode --engine baseline --model mock
+python scripts/benchmark.py profiling --type scheduling --engine baseline --model mock
 
 # API and dashboard
 uvicorn main:app --reload --port 8000
@@ -105,6 +111,30 @@ streamlit run streamlit_app.py
 
 # Tests
 pytest -q
+```
+
+GPU install: `pip install -r requirements-gpu.txt` (see Brev doc).
+
+## GPU / publication
+
+```bash
+pip install -r requirements-gpu.txt
+python scripts/run_publication_benchmark.py \
+  --model distilgpt2 \
+  --rounds 50 \
+  --out results/publication
+```
+
+Copy `results/publication/` and `data/publication_run.db` off the instance, then stop the GPU.
+
+Do not use `--allow-fallback` for publication. Real models must fail if CUDA/vLLM is missing.
+
+Optional HF ablations on the same box:
+
+```bash
+python scripts/benchmark.py systems \
+  --engines baseline vllm hf_prefix_cache hf_tool_interrupt \
+  --model distilgpt2 --rounds 20
 ```
 
 ## Architecture
@@ -116,21 +146,21 @@ CLI / FastAPI / Streamlit
 Benchmark orchestration (evaluation/runner.py)
         |
         +--> Inference engines (inference/, serving/)
-        |     - HuggingFace baseline, vLLM, Preble, Infercept, mock
+        |     - baseline, vllm, hf_* ablations, remote preble/infercept, mock
         |
         +--> Workload generators (agents/, environments/)
-        |     - Agent policies: heuristic, SFT, RL, LLM, impostor
+        |     - Agent policies: heuristic, SFT, RL, impostor
         |     - Gymnasium game environments
         |
         +--> Profilers (analysis/)
-        |     - KV-cache growth, TTFT/TPOT, throughput, scheduling overhead
+        |     - KV-cache, TTFT/TPOT, throughput modes, host wait
         |
         v
 SQLite -> Dashboard
 ```
 
-Every engine returns the same metric schema (`serving/base.py`), so adding a new backend means writing one class and nothing else has to change. See [docs/architecture.md](docs/architecture.md) for engine details, profiler descriptions, and the database schema.
+Every engine returns the same metric schema (`serving/base.py`). See [docs/architecture.md](docs/architecture.md) for engines, profilers, and the database schema. See [docs/brev_setup.md](docs/brev_setup.md) for Brev.
 
 ## Contributing
 
-Run `pytest -q` before opening a PR. If you're touching a GPU-backed engine, run it with `--model mock` first so people without a GPU can still run the tests.
+Run `pytest -q` before opening a PR. Touching a GPU-backed engine: verify with `--model mock` first. Do not commit secrets or live API keys.

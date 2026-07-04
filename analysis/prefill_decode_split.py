@@ -98,6 +98,20 @@ class SplitSummary:
             f"prefill={self.mean_prefill_pct:.1f}% decode={self.mean_decode_pct:.1f}%"
         )
 
+    def to_dict(self) -> dict[str, float | str | int]:
+        return {
+            "engine_name": self.engine_name,
+            "n": self.n,
+            "mean_ttft_ms": self.mean_ttft_ms,
+            "p95_ttft_ms": self.p95_ttft_ms,
+            "mean_tpot_ms": self.mean_tpot_ms,
+            "p95_tpot_ms": self.p95_tpot_ms,
+            "mean_total_ms": self.mean_total_ms,
+            "p95_total_ms": self.p95_total_ms,
+            "mean_prefill_pct": self.mean_prefill_pct,
+            "mean_decode_pct": self.mean_decode_pct,
+        }
+
 
 def _pct(data: list[float], p: float) -> float:
     if not data:
@@ -140,9 +154,8 @@ class PrefillDecodeProfiler:
     """Profile prefill vs decode latency by calling engine.generate() many times.
 
     The engine is expected to return an InferenceResult with ttft_ms and
-    tpot_ms populated.  If those fields are missing (e.g. mock engine that
-    returns a fixed total), the profiler estimates a 70/30 prefill/decode split
-    as a conservative approximation.
+    tpot_ms populated. Missing TTFT is treated as all wall time in prefill;
+    failed calls are skipped (no invented 70/30 splits).
     """
 
     def __init__(self, warmup_runs: int = 3, measure_runs: int = 20) -> None:
@@ -193,31 +206,25 @@ class PrefillDecodeProfiler:
                 n_out   = getattr(result, "output_tokens", max_new_tokens)
                 n_in    = getattr(result, "prompt_tokens", len(prompt.split()))
 
+                total_ms = getattr(result, "total_latency_ms", None) or wall_ms
                 if ttft_ms is None or ttft_ms <= 0:
-                    # Fallback: 70% prefill, 30% decode
-                    ttft_ms = wall_ms * 0.70
-                if tpot_ms is None or tpot_ms <= 0:
-                    decode_ms = wall_ms * 0.30
-                    tpot_ms   = decode_ms / max(1, n_out - 1)
+                    # Honest fallback: attribute all wall time to TTFT when split unknown.
+                    ttft_ms = float(total_ms)
+                if tpot_ms is None or tpot_ms < 0:
+                    decode_ms = max(0.0, float(total_ms) - float(ttft_ms))
+                    tpot_ms = decode_ms / max(1, n_out - 1) if n_out > 1 else 0.0
 
                 results.append(LatencyBreakdown(
-                    ttft_ms=ttft_ms,
-                    tpot_ms=tpot_ms,
+                    ttft_ms=float(ttft_ms),
+                    tpot_ms=float(tpot_ms),
                     output_tokens=n_out,
                     prompt_tokens=n_in,
                     engine_name=engine_name,
                     quantization=quantization,
                 ))
             except Exception:
-                # Record the failed call with measured wall time.
-                wall_ms = (time.perf_counter() - t0) * 1_000
-                results.append(LatencyBreakdown(
-                    ttft_ms=wall_ms * 0.70,
-                    tpot_ms=wall_ms * 0.30 / max(1, max_new_tokens - 1),
-                    output_tokens=max_new_tokens,
-                    engine_name=engine_name,
-                    quantization=quantization,
-                ))
+                # Skip failed calls rather than inventing a 70/30 split.
+                continue
 
         return results
 

@@ -56,16 +56,15 @@ class TestEnvironmentEdgeCases:
         assert terminated or truncated
 
     def test_illegal_action_handling(self):
-        """Passing action outside legal_moves should not crash."""
-        env = RPSPlusEnv(max_turns=10, seed=1)
+        """Illegal POWER when energy is too low raises ValueError."""
+        env = RPSPlusEnv(max_turns=10, seed=1, starting_energy=0)
         obs, info = env.reset()
-        # Drain energy so POWER becomes illegal
-        for _ in range(20):
-            obs, reward, terminated, truncated, info = env.step(int(Move.POWER))
-            if terminated or truncated:
-                break
-        # Environment should handle any int action without crashing
-        # (it clamps or selects from legal)
+        legal = info["legal_moves"]
+        assert int(Move.POWER) not in legal
+        import pytest
+
+        with pytest.raises(ValueError, match="illegal RPS+"):
+            env.step(int(Move.POWER))
 
     def test_repeated_resets(self):
         """Multiple resets should produce consistent initial state."""

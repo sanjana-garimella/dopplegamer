@@ -110,9 +110,12 @@ class HeuristicAgent(Agent):
 
 
 class OptimalAgent(Agent):
-    """Optimal RPS+ agent that counters perfectly."""
+    """Lag-1 best-response agent: counters the opponent's previous move.
 
-    name = "optimal"
+    Not a game-theoretic optimum; registered as both `optimal` and `lag1_counter`.
+    """
+
+    name = "lag1_counter"
 
     COUNTER = BEST_COUNTER
 
@@ -165,4 +168,5 @@ def register_agent(name: str, cls: type[Agent]) -> None:
 # Register core agents
 register_agent("random", RandomAgent)
 register_agent("heuristic", HeuristicAgent)
-register_agent("optimal", OptimalAgent)
+register_agent("lag1_counter", OptimalAgent)
+register_agent("optimal", OptimalAgent)  # alias

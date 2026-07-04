@@ -1,0 +1,21 @@
+{
+  "timestamp_utc": "2026-07-04T03:49:10.775088+00:00",
+  "python": "3.10.12",
+  "platform": "Linux-6.8.0-90-generic-x86_64-with-glibc2.35",
+  "processor": "x86_64",
+  "torch": "2.11.0+cu130",
+  "cuda_available": true,
+  "cuda_device": "NVIDIA L40S",
+  "cuda_version": "13.0",
+  "vllm": "0.24.0",
+  "transformers": "5.13.0",
+  "model": "distilgpt2",
+  "rounds": 50,
+  "engines": [
+    "baseline",
+    "vllm"
+  ],
+  "seed": 0,
+  "prompt_seed": 0,
+  "methodology": "library-mode single-stream systems benchmark with game-driven prompts; vLLM throughput uses generate_batch (continuous batching); host_wait is wall-cpu, not serving-scheduler time; batch per-request latency may be estimated (see latency_estimated); preble/infercept only if remote BASE_URL is set"
+}

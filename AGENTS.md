@@ -57,7 +57,7 @@ Results go to `data/game_data.db` (override with `DOPPELGAMER_DB_PATH`). Publica
 
 ## Further reading
 
-- [docs/architecture.md](docs/architecture.md) — engines, profilers, DB schema
-- [docs/brev_setup.md](docs/brev_setup.md) — GPU instance setup and cost notes
-- `.cursor/memory/` — project learnings and decisions
-- `.cursor/skills/` — workflow skills for benchmarks, new envs/agents/engines, debugging
+- [docs/architecture.md](docs/architecture.md): engines, profilers, DB schema
+- [docs/brev_setup.md](docs/brev_setup.md): GPU instance setup and cost notes
+- `.cursor/memory/`: project learnings and decisions
+- `.cursor/skills/`: workflow skills for benchmarks, new envs/agents/engines, debugging

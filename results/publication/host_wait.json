@@ -1,0 +1,24 @@
+{
+  "baseline": {
+    "metric": "host_wait_ms",
+    "n_calls": 30.0,
+    "mean_wall_ms": 12.71538316667223,
+    "p50_wall_ms": 12.690366000015274,
+    "p95_wall_ms": 13.093570099977114,
+    "p99_wall_ms": 15.1712849099863,
+    "mean_host_wait_ms": 0.00032673333117590647,
+    "mean_host_wait_pct": 0.002569590919071112,
+    "throughput_qps": 78.64489704258847
+  },
+  "vllm": {
+    "metric": "host_wait_ms",
+    "n_calls": 30.0,
+    "mean_wall_ms": 8.403387900019274,
+    "p50_wall_ms": 8.296707499994227,
+    "p95_wall_ms": 8.698635500104501,
+    "p99_wall_ms": 9.580768550044924,
+    "mean_host_wait_ms": 7.034417133352555,
+    "mean_host_wait_pct": 83.70929935694652,
+    "throughput_qps": 118.99962394901543
+  }
+}

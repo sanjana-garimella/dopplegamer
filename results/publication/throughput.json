@@ -1,0 +1,71 @@
+{
+  "baseline": [
+    {
+      "mode": "sequential",
+      "concurrency": 1.0,
+      "total_requests": 32.0,
+      "elapsed_s": 0.40536825499998486,
+      "throughput_qps": 78.94056726272558,
+      "success_rate": 1.0,
+      "mean_latency_ms": 12.664849624997032,
+      "p50_latency_ms": 12.601396000036402,
+      "p95_latency_ms": 13.177656299967566,
+      "p99_latency_ms": 13.379277159958747,
+      "max_latency_ms": 13.464143999954103
+    }
+  ],
+  "vllm": [
+    {
+      "mode": "engine_batch",
+      "concurrency": 1.0,
+      "total_requests": 32.0,
+      "elapsed_s": 0.27893298399999367,
+      "throughput_qps": 114.7228970238985,
+      "success_rate": 1.0,
+      "mean_latency_ms": 8.711955281242467,
+      "p50_latency_ms": 8.565185499946892,
+      "p95_latency_ms": 8.960291449920987,
+      "p99_latency_ms": 10.778554449896095,
+      "max_latency_ms": 11.592553999889788
+    },
+    {
+      "mode": "engine_batch",
+      "concurrency": 2.0,
+      "total_requests": 32.0,
+      "elapsed_s": 0.17765074799990543,
+      "throughput_qps": 180.12870961858846,
+      "success_rate": 1.0,
+      "mean_latency_ms": 5.548976687492768,
+      "p50_latency_ms": 4.608456749963352,
+      "p95_latency_ms": 9.830331925041941,
+      "p99_latency_ms": 13.687095000022964,
+      "max_latency_ms": 13.687095000022964
+    },
+    {
+      "mode": "engine_batch",
+      "concurrency": 4.0,
+      "total_requests": 32.0,
+      "elapsed_s": 0.10112112899992098,
+      "throughput_qps": 316.45216302940014,
+      "success_rate": 1.0,
+      "mean_latency_ms": 3.1583890625128674,
+      "p50_latency_ms": 3.1306651250133655,
+      "p95_latency_ms": 3.3553654999991522,
+      "p99_latency_ms": 3.3553654999991522,
+      "max_latency_ms": 3.3553654999991522
+    },
+    {
+      "mode": "engine_batch",
+      "concurrency": 8.0,
+      "total_requests": 32.0,
+      "elapsed_s": 0.053914824000003136,
+      "throughput_qps": 593.5287853299519,
+      "success_rate": 1.0,
+      "mean_latency_ms": 1.6839491875018098,
+      "p50_latency_ms": 1.677792312491988,
+      "p95_latency_ms": 1.7333173749989328,
+      "p99_latency_ms": 1.7333173749989328,
+      "max_latency_ms": 1.7333173749989328
+    }
+  ]
+}

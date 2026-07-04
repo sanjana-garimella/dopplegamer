@@ -1,0 +1,26 @@
+{
+  "baseline": {
+    "engine_name": "baseline",
+    "n": 30,
+    "mean_ttft_ms": 3.086001299993768,
+    "p95_ttft_ms": 3.192871700048272,
+    "mean_tpot_ms": 2.6984634761880617,
+    "p95_tpot_ms": 2.7889811571331586,
+    "mean_total_ms": 21.975245633310198,
+    "p95_total_ms": 22.659312849634716,
+    "mean_prefill_pct": 14.04519734906435,
+    "mean_decode_pct": 85.95480265093565
+  },
+  "vllm": {
+    "engine_name": "vllm",
+    "n": 30,
+    "mean_ttft_ms": 1.9547178708345807,
+    "p95_ttft_ms": 2.529963975003113,
+    "mean_tpot_ms": 1.9547178708345807,
+    "p95_tpot_ms": 2.529963975003113,
+    "mean_total_ms": 15.637742966676646,
+    "p95_total_ms": 20.239711800024903,
+    "mean_prefill_pct": 12.5,
+    "mean_decode_pct": 87.5
+  }
+}

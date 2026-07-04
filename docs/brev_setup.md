@@ -124,18 +124,34 @@ python scripts/run_publication_benchmark.py \
 The script fails loud if host-wait profiling does not use `host_wait_ms` (wall −
 CPU) for local engines. Do not pass `--allow-fallback`.
 
-Copy **off the instance before delete**:
+Reference numbers for comparison against your run (latency, full throughput
+sweep, host-wait analysis) live in [docs/results.md](results.md).
+
+### Copying results off before stop/delete
+
+Copy results **off the instance before stopping or deleting it**:
 
 - `results/publication/` (metadata.json, CSVs, `host_wait.json`, throughput JSON)
-- `data/publication_run.db` (or whatever `--db` you set)
+- `data/publication_run.db` (or whatever `--db` was set)
 
 ```bash
-# example from your laptop
-scp -r <brev-host>:~/dopplegamer/results/publication ./results/
-scp <brev-host>:~/dopplegamer/data/publication_run.db ./data/
+# Run from the local machine, not the instance. Requires the Brev CLI. Run
+# `brev refresh` first after starting/restarting the instance, since the IP
+# may have changed.
+scp -r <instance-name>:~/dopplegamer/results/publication ./results/
+scp <instance-name>:~/dopplegamer/data/publication_run.db ./data/
+# or: brev copy <instance-name>:~/dopplegamer/results/publication ./results/
 ```
 
-Then stop/delete the Brev instance.
+`<instance-name>` is the value shown in the `NAME` column of `brev ls`, not the
+in-container hostname shown in the SSH prompt.
+
+Stop the instance (`brev stop <instance-name>`) to pause billing, or delete it
+(`brev delete <instance-name>`) when it is no longer needed. **Not every
+provider supports stop**: some marketplace GPUs (for example, certain
+MassedCompute nodes) are delete-only. `brev stop` reports whether an instance
+can be paused; if not, delete it once data is copied off and re-provision later
+following [First-time setup](#first-time-setup) (about 20-40 minutes).
 
 Methodology to report: **library-mode** baseline vs vLLM; throughput mode is
 `engine_batch` for vLLM and `sequential` for HF; host-wait is **wall − CPU**
@@ -170,22 +186,22 @@ python scripts/benchmark.py systems \
 ## Troubleshooting
 
 **`RuntimeError: Could not find nvcc and default cuda_home='/usr/local/cuda'
-doesn't exist` (from `flashinfer`) when loading vLLM.** vLLM's default
-top-k/top-p sampler is FlashInfer, which JIT-compiles a CUDA kernel the first
-time `LLM(...)` runs. That needs the full CUDA *toolkit* (`nvcc`), not just the
-driver/runtime that `nvidia-smi` reports, and most rented GPU images (Brev
-included) only ship the runtime. `serving/vllm_server.py` sets
-`VLLM_USE_FLASHINFER_SAMPLER=0` by default to force the PyTorch-native sampler
-and skip the JIT compile entirely, so this should not surface with current
-code. If you still hit it (e.g. calling `vllm` directly outside this repo),
-either export `VLLM_USE_FLASHINFER_SAMPLER=0` yourself or install the CUDA
-toolkit (`sudo apt install cuda-toolkit`) so `nvcc` is on `PATH`.
+does not exist` (from `flashinfer`) when loading vLLM.** vLLM's default
+top-k/top-p sampler is FlashInfer, which JIT-compiles a CUDA kernel on the
+first `LLM(...)` call. This requires the full CUDA *toolkit* (`nvcc`), not
+just the driver/runtime that `nvidia-smi` reports; most rented GPU images,
+including Brev, ship only the runtime. `serving/vllm_server.py` sets
+`VLLM_USE_FLASHINFER_SAMPLER=0` by default, forcing the PyTorch-native sampler
+and skipping the JIT compile, so this error should not occur with current
+code. If it does occur (for example, calling `vllm` directly outside this
+repository), export `VLLM_USE_FLASHINFER_SAMPLER=0` manually or install the
+CUDA toolkit (`sudo apt install cuda-toolkit`) so `nvcc` is on `PATH`.
 
 **`sqlite3.OperationalError: no such table: player_profiles`** on a fresh
-clone. This was a real bug (`PlayerProfileManager` didn't run `init_db` before
-its first query) and is fixed in current code; `data/game_data.db` is
-gitignored so every fresh clone starts with no DB file until something
-initializes it. If you still see this on an old checkout, `git pull` or run
+clone. This was a bug: `PlayerProfileManager` did not run `init_db` before its
+first query. It is fixed in current code. `data/game_data.db` is gitignored,
+so every fresh clone starts with no database file until something initializes
+it. On an older checkout, `git pull` or run
 `python3 -c "from data.schemas import init_db; init_db('data/game_data.db')"`.
 
 ## Preble / InferCept

@@ -10,8 +10,8 @@ Every engine emits the same normalized metric schema (`serving/base.py`). Swap b
 | vllm | vLLM library mode; `generate_batch` for continuous batching |
 | hf_prefix_cache | Local HF ablation of shared-prefix KV reuse |
 | hf_tool_interrupt | Local HF ablation of tool-interrupt resume |
-| preble | **Remote only** — OpenAI-compatible client; set `PREBLE_BASE_URL` or `DOPPELGAMER_PREBLE_URL` |
-| infercept | **Remote only** — OpenAI-compatible client; set `INFERCEPT_BASE_URL` or `DOPPELGAMER_INFERCEPT_URL` |
+| preble | **Remote only**: OpenAI-compatible client; set `PREBLE_BASE_URL` or `DOPPELGAMER_PREBLE_URL` |
+| infercept | **Remote only**: OpenAI-compatible client; set `INFERCEPT_BASE_URL` or `DOPPELGAMER_INFERCEPT_URL` |
 | mock | Deterministic CPU engine for CI and local dev |
 
 Do not report `hf_prefix_cache` / `hf_tool_interrupt` as Preble or InferCept. Those names require a live cluster URL and fail loud without it.

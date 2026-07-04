@@ -49,20 +49,24 @@ class VLLMEngine(InferenceEngine):
         params = self.SamplingParams(temperature=0.0, max_tokens=max_new_tokens)
         with _Timer() as t:
             outputs = self.llm.generate(list(prompts), params)
-        # Wall time is shared across the batch (continuous batching).
-        per_wall = t.elapsed_ms / max(1, len(outputs))
+        batch_size = len(outputs)
+        batch_wall_ms = t.elapsed_ms
+        # Equal split is only a fallback when per-request metrics are missing.
+        per_wall_fallback = batch_wall_ms / max(1, batch_size)
         results: list[InferenceResult] = []
         for out in outputs:
             prompt_token_ids = list(out.prompt_token_ids)
             prompt_tokens = len(prompt_token_ids)
             output_tokens = len(out.outputs[0].token_ids)
             text = out.outputs[0].text
-            ttft_ms = self._ttft_ms(out, per_wall, output_tokens)
-            decode_ms = max(0.0, per_wall - ttft_ms)
+            total_ms, total_estimated = self._request_latency_ms(out, per_wall_fallback)
+            ttft_ms, ttft_estimated = self._ttft_ms(out, total_ms, output_tokens)
+            decode_ms = max(0.0, total_ms - ttft_ms)
             tpot_ms = decode_ms / max(1, output_tokens - 1) if output_tokens > 1 else 0.0
             hit, miss = self._prefix_hit_miss(prompt_token_ids)
             self._prev_prompt_token_ids = prompt_token_ids
             metrics = getattr(out, "metrics", None)
+            latency_estimated = total_estimated or ttft_estimated or batch_size > 1
             results.append(
                 InferenceResult(
                     text=text,
@@ -70,42 +74,52 @@ class VLLMEngine(InferenceEngine):
                     output_tokens=output_tokens,
                     ttft_ms=ttft_ms,
                     tpot_ms=tpot_ms,
-                    total_latency_ms=per_wall,
+                    total_latency_ms=total_ms,
                     kv_cache_mb=self._estimate_kv_mb(prompt_tokens + output_tokens),
                     prefix_cache_hit_tokens=hit,
                     prefix_cache_miss_tokens=miss,
                     extra={
                         "actual_backend": "vllm",
                         "enable_prefix_caching": self.enable_prefix_caching,
-                        "batch_size": len(prompts),
-                        "batch_wall_ms": t.elapsed_ms,
+                        "batch_size": batch_size,
+                        "batch_wall_ms": batch_wall_ms,
+                        "latency_estimated": latency_estimated,
+                        "prefix_cache_source": "client_heuristic_prev_prompt",
                         "engine_metrics": metrics.__dict__ if metrics is not None else {},
                     },
                 )
             )
         return results
 
-    def _ttft_ms(self, out, elapsed_ms: float, output_tokens: int) -> float:
+    def _request_latency_ms(self, out, fallback_ms: float) -> tuple[float, bool]:
         metrics = getattr(out, "metrics", None)
         if metrics is None:
-            return elapsed_ms / max(1, output_tokens)
+            return fallback_ms, True
+        arrival = getattr(metrics, "arrival_time", None)
+        finished = getattr(metrics, "finished_time", None)
+        if arrival is not None and finished is not None:
+            return max(0.0, (finished - arrival) * 1000.0), False
+        return fallback_ms, True
+
+    def _ttft_ms(self, out, elapsed_ms: float, output_tokens: int) -> tuple[float, bool]:
+        metrics = getattr(out, "metrics", None)
+        if metrics is None:
+            return elapsed_ms / max(1, output_tokens), True
 
         first = getattr(metrics, "first_token_time", None)
         arrival = getattr(metrics, "arrival_time", None)
         scheduled = getattr(metrics, "first_scheduled_time", None)
         # RequestMetrics fields are absolute timestamps (seconds); TTFT is a duration.
         if first is not None and arrival is not None:
-            return max(0.0, (first - arrival) * 1000.0)
+            return max(0.0, (first - arrival) * 1000.0), False
         if first is not None and scheduled is not None:
-            return max(0.0, (first - scheduled) * 1000.0)
-        # Some builds expose first_token_time as a duration already (small values).
-        if first is not None and 0.0 <= float(first) < elapsed_ms / 1000.0 + 1.0:
-            # Ambiguous: if first looks like a duration in seconds (< wall clock), use it.
-            if float(first) < 60.0 and arrival is None:
-                return float(first) * 1000.0
-        return elapsed_ms / max(1, output_tokens)
+            return max(0.0, (first - scheduled) * 1000.0), False
+        if first is not None and 0.0 <= float(first) < 60.0 and arrival is None:
+            return float(first) * 1000.0, True
+        return elapsed_ms / max(1, output_tokens), True
 
     def _prefix_hit_miss(self, prompt_token_ids: list[int]) -> tuple[int, int]:
+        """Client-side heuristic: shared prefix with the previous prompt only."""
         if not self.enable_prefix_caching or not self._prev_prompt_token_ids:
             return 0, len(prompt_token_ids)
         shared = 0

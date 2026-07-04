@@ -9,12 +9,13 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from environments.legal_action_wrapper import LegalActionWrapper
 from environments.rps_plus import RPSPlusEnv
 
 
 def make_env(seed: int = 0):
     def thunk():
-        env = RPSPlusEnv(seed=seed)
+        env = LegalActionWrapper(RPSPlusEnv(seed=seed))
         return env
 
     return thunk

@@ -19,11 +19,12 @@ if str(root) not in sys.path:
 from dashboard.auth import require_user_profile
 from dashboard.config import db_path as configured_db_path
 from dashboard.ui import configure_page, render_sidebar_nav, style_plotly_figure
+from data.features import filter_aggregated_agent_results
 from data.schemas import connect
 
 
 def load_agent_results(db_path: str | Path) -> pd.DataFrame:
-    """Load agent benchmark results from database."""
+    """Load aggregated agent benchmark results (drop per-seed duplicates)."""
     try:
         conn = connect(str(db_path))
         df = pd.read_sql_query(
@@ -31,7 +32,7 @@ def load_agent_results(db_path: str | Path) -> pd.DataFrame:
             conn
         )
         conn.close()
-        return df
+        return filter_aggregated_agent_results(df)
     except Exception as e:
         st.error(f"Failed to load agent results: {e}")
         return pd.DataFrame()

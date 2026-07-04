@@ -19,6 +19,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from analysis.stats_utils import percentile
+
 
 # ---------------------------------------------------------------------------
 # Core breakdown dataclass
@@ -113,13 +115,6 @@ class SplitSummary:
         }
 
 
-def _pct(data: list[float], p: float) -> float:
-    if not data:
-        return 0.0
-    s = sorted(data)
-    return s[min(int(len(s) * p / 100), len(s) - 1)]
-
-
 def aggregate_splits(breakdowns: list[LatencyBreakdown]) -> SplitSummary:
     """Compute aggregate statistics from a list of LatencyBreakdown samples."""
     if not breakdowns:
@@ -136,11 +131,11 @@ def aggregate_splits(breakdowns: list[LatencyBreakdown]) -> SplitSummary:
         engine_name=name,
         n=len(breakdowns),
         mean_ttft_ms=statistics.mean(ttfts),
-        p95_ttft_ms=_pct(ttfts, 95),
+        p95_ttft_ms=percentile(ttfts, 95),
         mean_tpot_ms=statistics.mean(tpots),
-        p95_tpot_ms=_pct(tpots, 95),
+        p95_tpot_ms=percentile(tpots, 95),
         mean_total_ms=statistics.mean(totals),
-        p95_total_ms=_pct(totals, 95),
+        p95_total_ms=percentile(totals, 95),
         mean_prefill_pct=statistics.mean(pre_frc),
         mean_decode_pct=statistics.mean(dec_frc),
     )
@@ -189,8 +184,8 @@ class PrefillDecodeProfiler:
         for i in range(self.warmup_runs):
             try:
                 engine.generate(prompts[i % n_prompts], max_new_tokens=max_new_tokens)
-            except Exception:
-                pass
+            except Exception as warmup_exc:
+                print(f"warmup failed for {engine_name}: {warmup_exc}")
 
         results: list[LatencyBreakdown] = []
         for i in range(self.measure_runs):

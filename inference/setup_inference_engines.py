@@ -260,8 +260,9 @@ configure_infercept = lambda cfg: configure_remote("infercept", cfg)  # noqa: E7
 
 
 class _MockEngine(InferenceEngine):
-    supports_concurrent_clients = True
-    supports_engine_batch = True
+    # Sequential only: prefix set is not thread-safe and batch is not real.
+    supports_concurrent_clients = False
+    supports_engine_batch = False
 
     def __init__(self, name: str) -> None:
         self.name = name
@@ -294,7 +295,7 @@ class _MockEngine(InferenceEngine):
             tpot_ms=tpot,
             total_latency_ms=total,
             kv_cache_mb=0.25 * prompt_tokens,
-            scheduling_overhead_ms=0.6,
+            scheduling_overhead_ms=None,
             prefix_cache_hit_tokens=hit,
             prefix_cache_miss_tokens=miss,
             extra=extra,

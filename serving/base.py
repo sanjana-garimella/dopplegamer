@@ -16,7 +16,8 @@ class InferenceResult:
     tpot_ms: float
     total_latency_ms: float
     kv_cache_mb: float = 0.0
-    scheduling_overhead_ms: float = 0.0
+    # None means "not reported" (do not treat 0.0 as a real measurement).
+    scheduling_overhead_ms: float | None = None
     # SGLang-style prefix cache metrics (RadixAttention, NeurIPS 2024)
     prefix_cache_hit_tokens: int = 0   # tokens served from cached prefix
     prefix_cache_miss_tokens: int = 0  # tokens that required fresh computation

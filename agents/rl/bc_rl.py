@@ -16,6 +16,7 @@ import numpy as np
 import gymnasium as gym
 
 from agents.rl.rewards import DualRewardConfig, combine
+from environments.legal_action_wrapper import LegalActionWrapper
 from environments.rps_plus import N_MOVES, RPSPlusEnv
 
 
@@ -26,11 +27,12 @@ class DualRewardEnv(gym.Env):
 
     def __init__(self, env: RPSPlusEnv, ref_policy_logits, cfg: DualRewardConfig) -> None:
         super().__init__()
-        self.env = env
+        # Clamp illegal actions (e.g. POWER at low energy) before RPS+ raises.
+        self.env = LegalActionWrapper(env)
         self.ref = ref_policy_logits
         self.cfg = cfg
-        self.observation_space = env.observation_space
-        self.action_space = env.action_space
+        self.observation_space = self.env.observation_space
+        self.action_space = self.env.action_space
 
     def reset(self, **kwargs):
         return self.env.reset(**kwargs)
@@ -38,7 +40,9 @@ class DualRewardEnv(gym.Env):
     def step(self, action):
         obs, r, term, trunc, info = self.env.step(action)
         ref_logits = self.ref(obs, info) if self.ref else None
-        new_r = combine(r, int(action), ref_logits, self.cfg)
+        # Use the action actually taken if the wrapper clamped it.
+        taken = int(info.get("action", action)) if isinstance(info, dict) else int(action)
+        new_r = combine(r, taken, ref_logits, self.cfg)
         return obs, new_r, term, trunc, info
 
     def render(self):

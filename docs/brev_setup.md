@@ -7,9 +7,9 @@ Laptop/CI uses `--model mock` (no GPU). Use Brev for real HuggingFace and vLLM
 numbers, or for SFT on a 1B-class model.
 
 **Before you start:** the instance must have the *current* repo (publication
-script, fail-loud engines, `requirements-gpu.txt`). Push your branch to GitHub
-and clone it, or `rsync`/`scp` your local tree. A clone of an old `main` will
-miss recent harness fixes.
+script, fail-loud engines, host-wait fix, `prompt_seed`, `requirements-gpu.txt`).
+Push your latest commits to GitHub and clone/pull them, or `rsync`/`scp` your
+local tree. A clone of an older `main` will miss publication-readiness fixes.
 
 ## Contents
 
@@ -100,22 +100,29 @@ throughput profiles, metadata, CSV export.
 python scripts/run_publication_benchmark.py \
   --model distilgpt2 \
   --rounds 50 \
+  --seed 0 \
   --out results/publication
 ```
 
-Stronger main result (needs HF access for Llama):
+Stronger main result (needs HF access for Llama). Repeat with `--seed 1` and
+`--seed 2` into separate `--out` / `--db` paths if you want multi-seed tables:
 
 ```bash
 python scripts/run_publication_benchmark.py \
   --model meta-llama/Llama-3.2-1B \
   --rounds 50 \
-  --out results/publication_1b
+  --seed 0 \
+  --out results/publication_1b \
+  --db data/publication_1b.db
 ```
+
+The script fails loud if host-wait profiling does not use `host_wait_ms` (wall −
+CPU) for local engines. Do not pass `--allow-fallback`.
 
 Copy **off the instance before delete**:
 
-- `results/publication/` (metadata.json, CSVs, profiler JSON)
-- `data/publication_run.db` (default DB path for that script)
+- `results/publication/` (metadata.json, CSVs, `host_wait.json`, throughput JSON)
+- `data/publication_run.db` (or whatever `--db` you set)
 
 ```bash
 # example from your laptop
@@ -127,7 +134,9 @@ Then stop/delete the Brev instance.
 
 Methodology to report: **library-mode** baseline vs vLLM; throughput mode is
 `engine_batch` for vLLM and `sequential` for HF; host-wait is **wall − CPU**
-(includes GPU wait), not serving-scheduler time.
+(includes GPU wait), not serving-scheduler time; vLLM batch per-request latency
+may be estimated (`latency_estimated` in extras); prefix hits are a client-side
+heuristic unless you document otherwise.
 
 ## Ad-hoc benchmarks
 
@@ -177,6 +186,7 @@ python -m agents.sft.train \
 
 # Optional: --quantize-4bit on 24 GB for larger bases
 
+# LegalActionWrapper clamps illegal RPS+ moves (e.g. POWER at low energy)
 python -m agents.rl.train --timesteps 100000 --output checkpoints/ppo_best
 python scripts/train_real_checkpoints.py
 ```

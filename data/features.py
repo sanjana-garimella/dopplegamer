@@ -22,6 +22,24 @@ CANONICAL_BASELINE_BATTERY = [
     "adaptive_router",
 ]
 
+
+def filter_aggregated_agent_results(df: "pd.DataFrame") -> "pd.DataFrame":
+    """Keep aggregated benchmark rows; drop per-seed duplicates.
+
+    Runner writes per-seed rows on ``run_id`` and aggregates on ``run_id_agg``
+    with agent names like ``random::RPS+`` (no ``_seedN`` suffix).
+    """
+    if df is None or df.empty:
+        return df
+    out = df.copy()
+    if "run_id" in out.columns:
+        agg = out[out["run_id"].astype(str).str.endswith("_agg")]
+        if not agg.empty:
+            return agg.reset_index(drop=True)
+    if "agent_name" in out.columns:
+        out = out[~out["agent_name"].astype(str).str.contains(r"_seed\d+$", regex=True)]
+    return out.reset_index(drop=True)
+
 CONTROLLED_REARING_SLICES = [
     "early_sessions_v1",
     "recent_sessions_v1",
@@ -457,16 +475,19 @@ def clone_latency_fidelity_frame(db_path: str | Path) -> pd.DataFrame:
         )
         agents = pd.read_sql_query(
             """
-            SELECT agent_name, win_rate, behavioral_fidelity, avg_decision_ms
+            SELECT run_id, agent_name, win_rate, behavioral_fidelity, avg_decision_ms
             FROM agent_results
             """,
             conn,
         )
     finally:
         conn.close()
-    agents = agents.copy() if not agents.empty else pd.DataFrame(columns=["agent_name", "win_rate", "behavioral_fidelity", "avg_decision_ms"])
+    agents = agents.copy() if not agents.empty else pd.DataFrame(
+        columns=["run_id", "agent_name", "win_rate", "behavioral_fidelity", "avg_decision_ms"]
+    )
     if not agents.empty:
-        agents["agent_key"] = agents["agent_name"].astype(str).str.split("::").str[0].str.replace(r"_seed\d+$", "", regex=True)
+        agents = filter_aggregated_agent_results(agents)
+        agents["agent_key"] = agents["agent_name"].astype(str).str.split("::").str[0]
         agent_agg = agents.groupby("agent_key", as_index=False).agg(
             avg_decision_ms=("avg_decision_ms", "mean"),
             win_rate=("win_rate", "mean"),

@@ -75,7 +75,6 @@ class OpenAICompatEngine(InferenceEngine):
             },
             method="POST",
         )
-        t0 = time.perf_counter()
         with _Timer() as t:
             try:
                 with urllib.request.urlopen(req, timeout=self.timeout_s) as resp:
@@ -96,7 +95,7 @@ class OpenAICompatEngine(InferenceEngine):
             ttft_ms=ttft_ms,
             tpot_ms=tpot_ms,
             total_latency_ms=elapsed_ms,
-            scheduling_overhead_ms=max(0.0, (time.perf_counter() - t0) * 1000.0 - elapsed_ms),
+            scheduling_overhead_ms=None,
             prefix_cache_hit_tokens=0,
             prefix_cache_miss_tokens=prompt_tokens,
             extra={
@@ -104,6 +103,7 @@ class OpenAICompatEngine(InferenceEngine):
                 "base_url": self.base_url,
                 "remote": True,
                 "ttft_estimated": True,
+                "latency_estimated": True,
             },
         )
 

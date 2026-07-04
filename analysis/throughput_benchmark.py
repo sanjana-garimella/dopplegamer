@@ -17,6 +17,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from analysis.stats_utils import percentile
+
 ThroughputMode = Literal["sequential", "engine_batch", "threaded_clients"]
 
 
@@ -51,12 +53,6 @@ class ThroughputReport:
     p99_latency_ms: float = 0.0
     max_latency_ms: float = 0.0
 
-    def _pct(self, data: list[float], p: float) -> float:
-        if not data:
-            return 0.0
-        s = sorted(data)
-        return s[min(int(len(s) * p / 100), len(s) - 1)]
-
     def compute(self, elapsed_s: float) -> None:
         self.elapsed_s = elapsed_s
         successes = [r for r in self.results if r.success]
@@ -65,9 +61,9 @@ class ThroughputReport:
         lats = [r.latency_ms for r in successes]
         if lats:
             self.mean_latency_ms = statistics.mean(lats)
-            self.p50_latency_ms = self._pct(lats, 50)
-            self.p95_latency_ms = self._pct(lats, 95)
-            self.p99_latency_ms = self._pct(lats, 99)
+            self.p50_latency_ms = percentile(lats, 50)
+            self.p95_latency_ms = percentile(lats, 95)
+            self.p99_latency_ms = percentile(lats, 99)
             self.max_latency_ms = max(lats)
 
     def summary(self) -> str:

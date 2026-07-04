@@ -16,6 +16,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from analysis.stats_utils import percentile
+
 
 def overhead_pct(total_latency_ms: float, scheduling_overhead_ms: float) -> float:
     """Return a component as a percentage of total latency."""
@@ -55,10 +57,13 @@ def measure_call(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> tuple[Any
     wall_ms = (t_wall_end - t_wall_start) * 1_000
     cpu_ms = (t_cpu_end - t_cpu_start) * 1_000
     host_wait_ms = max(0.0, wall_ms - cpu_ms)
-    engine_overhead = getattr(result, "scheduling_overhead_ms", None)
-    if engine_overhead is not None:
+    # Only trust an explicit non-None value. Default InferenceResult uses None
+    # so host_wait (wall - cpu) is used for baseline/vLLM.
+    engine_overhead: float | None = None
+    raw = getattr(result, "scheduling_overhead_ms", None)
+    if raw is not None:
         try:
-            engine_overhead = float(engine_overhead)
+            engine_overhead = float(raw)
         except (TypeError, ValueError):
             engine_overhead = None
 
@@ -90,31 +95,25 @@ class SchedulingReport:
     mean_sched_pct: float = 0.0
     throughput_qps: float = 0.0
 
-    def _pct(self, data: list[float], p: float) -> float:
-        if not data:
-            return 0.0
-        s = sorted(data)
-        idx = int(len(s) * p / 100)
-        return s[min(idx, len(s) - 1)]
-
     def compute(self) -> None:
         if not self.wall_ms:
             return
         self.mean_wall_ms = statistics.mean(self.wall_ms)
-        self.p50_wall_ms = self._pct(self.wall_ms, 50)
-        self.p95_wall_ms = self._pct(self.wall_ms, 95)
-        self.p99_wall_ms = self._pct(self.wall_ms, 99)
+        self.p50_wall_ms = percentile(self.wall_ms, 50)
+        self.p95_wall_ms = percentile(self.wall_ms, 95)
+        self.p99_wall_ms = percentile(self.wall_ms, 99)
         self.mean_sched_ms = statistics.mean(self.sched_ms) if self.sched_ms else 0.0
         self.mean_sched_pct = overhead_pct(self.mean_wall_ms, self.mean_sched_ms)
         total_s = sum(self.wall_ms) / 1_000
         self.throughput_qps = self.n_calls / total_s if total_s > 0 else 0.0
 
     def summary(self) -> str:
+        label = "host_wait" if self.metric == "host_wait_ms" else "engine_overhead"
         return (
             f"[{self.engine_name}] metric={self.metric} n={self.n_calls} | "
             f"mean={self.mean_wall_ms:.2f}ms p50={self.p50_wall_ms:.2f}ms "
             f"p95={self.p95_wall_ms:.2f}ms p99={self.p99_wall_ms:.2f}ms | "
-            f"host_wait={self.mean_sched_ms:.2f}ms ({self.mean_sched_pct:.1f}%) | "
+            f"{label}={self.mean_sched_ms:.2f}ms ({self.mean_sched_pct:.1f}%) | "
             f"throughput={self.throughput_qps:.1f} QPS"
         )
 
@@ -149,8 +148,8 @@ class SchedulingProfiler:
         for _ in range(self.warmup_runs):
             try:
                 fn(*args, **kwargs)
-            except Exception:
-                pass
+            except Exception as warmup_exc:
+                print(f"warmup failed for {engine_name}: {warmup_exc}")
 
         report = SchedulingReport(engine_name=engine_name, n_calls=self.measure_runs)
         host_waits: list[float] = []

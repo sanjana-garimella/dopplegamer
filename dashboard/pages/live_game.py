@@ -1739,6 +1739,15 @@ def _replay_saved_turns(entries: list[dict]) -> None:
     for entry in entries:
         player_move = int(entry.get("player_action", -1))
         opponent_move = int(entry.get("opponent_action", -1))
+        info = state.get("info") or {}
+        legal = info.get("legal_moves")
+        if legal is None and hasattr(env, "legal_actions"):
+            try:
+                legal = list(env.legal_actions())
+            except Exception:
+                legal = []
+        if player_move >= 0:
+            player_move = _coerce_action_to_legal(player_move, legal)
         original_policy = getattr(env, "_opponent_policy", None)
         if opponent_move >= 0:
             def replay_policy(move=opponent_move):
@@ -4244,6 +4253,7 @@ def _resolve_turn(player_move, opponent_policy, player_label, opponent_label, pl
             legal_for_surprisal = list(env.legal_actions())
         except Exception:
             legal_for_surprisal = None
+    player_move = _coerce_action_to_legal(player_move, legal_for_surprisal)
     surprisal_entry = _compute_move_surprisal(opponent_agent, int(player_move), prior_history, legal_for_surprisal)
 
     with st.spinner("Resolving turn..."):

@@ -24,29 +24,9 @@ if str(ROOT) not in sys.path:
 from analysis.scheduling_overhead import benchmark_engines as profile_host_wait
 from analysis.throughput_benchmark import concurrency_sweep
 from analysis.prefill_decode_split import compare_engines as profile_prefill_decode
-from data.schemas import connect
 from evaluation.runner import run_benchmark
 from inference.setup_inference_engines import EngineConfig, setup_inference_engines
-import pandas as pd
-
-
-def _export(db_path: Path, out_dir: Path) -> list[Path]:
-    written: list[Path] = []
-    conn = connect(db_path)
-    try:
-        for table in ("inference_benchmarks", "agent_results"):
-            try:
-                df = pd.read_sql_query(f"SELECT * FROM {table}", conn)
-            except Exception:
-                continue
-            if df.empty:
-                continue
-            path = out_dir / f"{table}.csv"
-            df.to_csv(path, index=False)
-            written.append(path)
-    finally:
-        conn.close()
-    return written
+from scripts.export_results import export
 
 
 def _hardware_metadata() -> dict:
@@ -87,7 +67,7 @@ def main() -> None:
     parser.add_argument("--rounds", type=int, default=50)
     parser.add_argument("--db", default="data/publication_run.db")
     parser.add_argument("--out", default="results/publication")
-    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--seed", type=int, default=0, help="Seed for game-driven prompts")
     parser.add_argument("--engines", nargs="+", default=["baseline", "vllm"])
     parser.add_argument("--skip-profilers", action="store_true")
     args = parser.parse_args()
@@ -102,10 +82,12 @@ def main() -> None:
             "rounds": args.rounds,
             "engines": args.engines,
             "seed": args.seed,
+            "prompt_seed": args.seed,
             "methodology": (
                 "library-mode single-stream systems benchmark with game-driven prompts; "
                 "vLLM throughput uses generate_batch (continuous batching); "
                 "host_wait is wall-cpu, not serving-scheduler time; "
+                "batch per-request latency may be estimated (see latency_estimated); "
                 "preble/infercept only if remote BASE_URL is set"
             ),
         }
@@ -121,8 +103,9 @@ def main() -> None:
         model_name=args.model,
         n_seeds=1,
         allow_fallback=False,
+        prompt_seed=args.seed,
     )
-    print(f"run_id={result['run_id']}")
+    print(f"run_id={result['run_id']} prompt_seed={result.get('prompt_seed')}")
 
     if not args.skip_profilers:
         pool = setup_inference_engines(
@@ -130,6 +113,16 @@ def main() -> None:
             engines=args.engines,
         )
         host = profile_host_wait(pool, measure_runs=min(30, args.rounds))
+        # Local engines must report host_wait (wall-cpu), not a zero engine field.
+        remote = {"preble", "infercept"}
+        for name, report in host.items():
+            if name in remote:
+                continue
+            if report.metric != "host_wait_ms":
+                raise RuntimeError(
+                    f"host-wait profiler used metric={report.metric!r} for {name}; "
+                    f"expected host_wait_ms (scheduling_overhead_ms must be None when unreported)"
+                )
         host_path = out_dir / "host_wait.json"
         host_path.write_text(json.dumps({k: v.to_dict() for k, v in host.items()}, indent=2))
         print(f"wrote {host_path}")
@@ -153,7 +146,7 @@ def main() -> None:
         thr_path.write_text(json.dumps(throughput, indent=2))
         print(f"wrote {thr_path}")
 
-    written = _export(Path(args.db), out_dir)
+    written = export(Path(args.db), out_dir)
     for path in written:
         print(path)
     print("done")

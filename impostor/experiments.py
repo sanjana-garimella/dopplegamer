@@ -107,7 +107,10 @@ def _play_episode(
     outcomes: list[int] = []
     done = False
     while not done:
-        action = agent.act(obs, info)
+        action = int(agent.act(obs, info))
+        legal = info.get("legal_moves") or []
+        if legal and action not in legal:
+            action = int(legal[0])
         moves.append(action)
         obs, reward, terminated, truncated, info = env.step(action)
         outcomes.append(int(np.sign(reward)))

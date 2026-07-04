@@ -1,7 +1,8 @@
 """HF prefix-cache ablation (not a Preble cluster client).
 
 Simulates shared-prefix reuse by caching past_key_values at prompt length only
-(token-aligned). Use engine name `hf_prefix_cache` (alias: `preble`).
+(token-aligned). Engine name: `hf_prefix_cache`. For a real Preble cluster set
+PREBLE_BASE_URL.
 """
 
 from __future__ import annotations
@@ -11,6 +12,8 @@ from serving.base import InferenceEngine, InferenceResult, _Timer
 
 class HFPrefixCacheEngine(InferenceEngine):
     name = "hf_prefix_cache"
+    supports_concurrent_clients = False
+    supports_engine_batch = False
 
     def __init__(self, model_name: str, prefix_cache: bool = True) -> None:
         from transformers import AutoModelForCausalLM, AutoTokenizer

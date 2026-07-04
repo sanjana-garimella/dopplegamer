@@ -156,7 +156,7 @@ def _insert_inference_row(conn, run_id: str, engine_name: str, model: str, quant
                 result.tpot_ms,
                 result.total_latency_ms,
                 result.kv_cache_mb,
-                result.scheduling_overhead_ms,
+                result.scheduling_overhead_ms if result.scheduling_overhead_ms is not None else None,
                 result.prefix_cache_hit_tokens,
                 result.prefix_cache_miss_tokens,
                 (result.extra or {}).get("actual_backend"),
@@ -180,7 +180,7 @@ def _insert_inference_row(conn, run_id: str, engine_name: str, model: str, quant
                 result.tpot_ms,
                 result.total_latency_ms,
                 result.kv_cache_mb,
-                result.scheduling_overhead_ms,
+                result.scheduling_overhead_ms if result.scheduling_overhead_ms is not None else None,
             ),
         )
 
@@ -272,6 +272,7 @@ def run_benchmark(
     n_seeds: int = 1,
     games: list[str] | None = None,
     allow_fallback: bool = False,
+    prompt_seed: int = 0,
 ) -> dict[str, Any]:
     if engines is None:
         engines = ["baseline", "vllm"]
@@ -382,9 +383,11 @@ def run_benchmark(
                     continue
                 game_suffix = score.agent_name.split("::", 1)[1] if "::" in score.agent_name else ""
                 random_key = next(
-                    (k for k in random_keys if k.endswith(f"::{game_suffix}") or k == "random"),
-                    random_keys[0],
+                    (k for k in random_keys if k.endswith(f"::{game_suffix}")),
+                    None,
                 )
+                if random_key is None:
+                    continue
                 try:
                     from scipy.stats import ttest_ind
 
@@ -411,7 +414,7 @@ def run_benchmark(
         # Lazy: construct only requested engines.
         selected = setup_inference_engines(engine_cfg, engines=engines)
 
-        prompts = _game_driven_prompts(rounds, seed=0) if engines else []
+        prompts = _game_driven_prompts(rounds, seed=prompt_seed) if engines else []
         for engine_name, engine in selected.items():
             warmup = getattr(engine, "warmup", None)
             if callable(warmup):
@@ -446,6 +449,7 @@ def run_benchmark(
         "games": games,
         "fidelity_reference": fidelity_reference,
         "model_name": model_name,
+        "prompt_seed": prompt_seed,
     }
 
 

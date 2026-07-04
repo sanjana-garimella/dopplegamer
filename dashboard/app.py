@@ -19,6 +19,7 @@ root = Path(__file__).parent.parent
 if str(root) not in sys.path:
     sys.path.append(str(root))
 
+from data.features import filter_aggregated_agent_results
 from data.schemas import connect, init_db
 from dashboard.config import db_path as configured_db_path
 from dashboard.navigation import switch_page_compat
@@ -289,7 +290,7 @@ def _hub_stat_values(db_path: Path, recent_games: pd.DataFrame) -> dict:
             total_games = int(len(games)) if not games.empty else total_games
             if not games.empty and {"agent_score", "opponent_score"}.issubset(games.columns):
                 win_rate = float((games["agent_score"] > games["opponent_score"]).mean())
-            agents = _read_table(conn, "agent_results")
+            agents = filter_aggregated_agent_results(_read_table(conn, "agent_results"))
             if not agents.empty and "agent_name" in agents.columns:
                 active_agents = int(agents["agent_name"].nunique())
             impostors = _read_table(conn, "impostor_results")
@@ -590,7 +591,7 @@ def _render_research_snapshot(db_path: Path):
         return
     conn = connect(db_path)
     try:
-        agents = _read_table(conn, "agent_results")
+        agents = filter_aggregated_agent_results(_read_table(conn, "agent_results"))
         inf = _read_table(conn, "inference_benchmarks")
     finally:
         conn.close()

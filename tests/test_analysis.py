@@ -47,8 +47,8 @@ def test_scheduling_report_labels_host_wait():
     engines = setup_inference_engines(cfg, engines=["baseline"])
     profiler = SchedulingProfiler(warmup_runs=0, measure_runs=2)
     report = profiler.profile(engines["baseline"].generate, "x", max_new_tokens=2, engine_name="b")
-    assert report.metric in {"host_wait_ms", "engine_scheduling_overhead_ms"}
-    assert "host_wait" in report.summary()
+    assert report.metric == "host_wait_ms"
+    assert "host_wait=" in report.summary()
 
 def test_prefill_decode_profiler():
     cfg = EngineConfig(model_name="mock")

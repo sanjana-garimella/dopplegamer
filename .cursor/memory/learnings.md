@@ -4,6 +4,8 @@ Append dated entries when you hit a gotcha. Newest at the top.
 
 ## 2026-07-03
 
+- **Host-wait bug:** `scheduling_overhead_ms` must be `None` when unreported; default `0.0` made the profiler never use wall−cpu. Publication script asserts `metric == host_wait_ms` for local engines.
+- **SB3 training:** wrap RPS+ with `LegalActionWrapper` so illegal POWER does not crash PPO.
 - **Publication blockers addressed:** `preble`/`infercept` are remote-only (`PREBLE_BASE_URL` / `INFERCEPT_BASE_URL`); HF ablations stay `hf_*`. Throughput modes: sequential / engine_batch (vLLM) / threaded_clients (remote). Scheduling profiler reports `host_wait_ms` (wall-cpu), not serving scheduler. Prefill/decode never invents 70/30. Protocol: `scripts/run_publication_benchmark.py`.
 - **API/engine hardening:** Lazy engine init (`setup_inference_engines(..., engines=[...])`); fallback rows labeled `requested→actual` via `_FallbackEngine`; `/benchmark` allowlists models, requires `DOPPELGAMER_API_KEY` for non-mock, caps list lengths, hides loader errors. Default battery excludes untrained ngram/lstm. Fidelity reuses reference agent play when present. Runner clamps illegal actions before `env.step` (RPS+ still raises if illegal reaches the env).
 - **Credibility fixes:** Real engines fail loud unless `allow_fallback`; vLLM TTFT uses timestamp deltas; HF baseline is single-pass; systems prompts are game-driven; agent `rounds` = games (20 turns each for RPS+); fidelity references heuristic (or sft if present); Preble/Infercept renamed to `hf_prefix_cache` / `hf_tool_interrupt` with aliases.

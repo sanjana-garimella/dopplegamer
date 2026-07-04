@@ -18,6 +18,7 @@ local tree. A clone of an older `main` will miss publication-readiness fixes.
 - [First-time setup](#first-time-setup)
 - [Publication run (recommended)](#publication-run-recommended)
 - [Ad-hoc benchmarks](#ad-hoc-benchmarks)
+- [Troubleshooting](#troubleshooting)
 - [Preble / InferCept](#preble--infercept)
 - [Training the checkpoints](#training-the-checkpoints)
 - [Estimated cost](#estimated-cost)
@@ -61,10 +62,14 @@ Sweet spot for the paper path: **one L4 or A10G, disk ≥ 50 GB**.
    git clone https://github.com/sanjana-garimella/dopplegamer.git
    cd dopplegamer
    # or: git checkout <your-branch> after push
-   python -m venv .venv
+   python3 -m venv .venv
    source .venv/bin/activate
    pip install -U pip
    ```
+
+   Most Brev/Ubuntu base images only have `python3` (no `python` alias). Once the
+   venv is activated `python` resolves correctly inside it; outside the venv use
+   `python3` explicitly, or `sudo apt install python-is-python3`.
 
 3. GPU deps (pulls CUDA torch via vLLM):
 
@@ -161,6 +166,27 @@ python scripts/benchmark.py systems \
   --model distilgpt2 \
   --rounds 20
 ```
+
+## Troubleshooting
+
+**`RuntimeError: Could not find nvcc and default cuda_home='/usr/local/cuda'
+doesn't exist` (from `flashinfer`) when loading vLLM.** vLLM's default
+top-k/top-p sampler is FlashInfer, which JIT-compiles a CUDA kernel the first
+time `LLM(...)` runs. That needs the full CUDA *toolkit* (`nvcc`), not just the
+driver/runtime that `nvidia-smi` reports, and most rented GPU images (Brev
+included) only ship the runtime. `serving/vllm_server.py` sets
+`VLLM_USE_FLASHINFER_SAMPLER=0` by default to force the PyTorch-native sampler
+and skip the JIT compile entirely, so this should not surface with current
+code. If you still hit it (e.g. calling `vllm` directly outside this repo),
+either export `VLLM_USE_FLASHINFER_SAMPLER=0` yourself or install the CUDA
+toolkit (`sudo apt install cuda-toolkit`) so `nvcc` is on `PATH`.
+
+**`sqlite3.OperationalError: no such table: player_profiles`** on a fresh
+clone. This was a real bug (`PlayerProfileManager` didn't run `init_db` before
+its first query) and is fixed in current code; `data/game_data.db` is
+gitignored so every fresh clone starts with no DB file until something
+initializes it. If you still see this on an old checkout, `git pull` or run
+`python3 -c "from data.schemas import init_db; init_db('data/game_data.db')"`.
 
 ## Preble / InferCept
 

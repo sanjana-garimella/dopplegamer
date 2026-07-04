@@ -10,8 +10,19 @@ The benchmark runner uses library mode for tight timing.
 from __future__ import annotations
 
 import argparse
+import os
 
 from serving.base import InferenceEngine, InferenceResult, _Timer
+
+# FlashInfer is vLLM's default top-k/top-p sampler and JIT-compiles a CUDA
+# kernel on first use, which needs `nvcc` (the full CUDA *toolkit*, not just
+# the runtime). Most rented GPU instances (e.g. Brev) only ship the runtime,
+# so the sampler crashes with "Could not find nvcc and default
+# cuda_home='/usr/local/cuda' doesn't exist" the moment `LLM(...)` is
+# constructed. Forcing the PyTorch-native sampler path avoids the JIT compile
+# entirely; it is slower but doesn't require a toolkit install. Respect an
+# explicit override if the caller already set this.
+os.environ.setdefault("VLLM_USE_FLASHINFER_SAMPLER", "0")
 
 
 class VLLMEngine(InferenceEngine):

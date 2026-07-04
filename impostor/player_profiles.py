@@ -16,7 +16,7 @@ from typing import Any
 
 import numpy as np
 
-from data.schemas import connect, init_extended_db
+from data.schemas import connect, init_db, init_extended_db
 from environments.rps_plus import BEST_COUNTER, N_MOVES, Move
 from impostor.metrics import retraining_trigger
 
@@ -150,6 +150,10 @@ class PlayerProfileManager:
 
     def __init__(self, db_path: str | Path = "data/game_data.db") -> None:
         self.db_path = Path(db_path)
+        # `player_profiles` lives in the base schema; a fresh DB file (e.g. a new
+        # clone/instance) has no tables at all until this runs, so every method
+        # below would hit `no such table: player_profiles`.
+        init_db(self.db_path)
 
     def create(self, display_name: str, player_id: str | None = None) -> PlayerProfile:
         player_id = player_id or uuid.uuid4().hex[:8]
